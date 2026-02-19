@@ -3,8 +3,8 @@ use pyo3::prelude::*;
 
 mod agari;
 pub mod errors;
-mod hand_evaluator;
-mod score;
+pub mod hand_evaluator;
+pub mod score;
 mod tests;
 pub mod types;
 mod yaku;

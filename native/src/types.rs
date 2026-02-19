@@ -149,7 +149,7 @@ impl Meld {
     }
 
     #[getter]
-    pub fn tiles(&self) -> Vec<u32> {
+    pub fn get_tiles(&self) -> Vec<u32> {
         self.tiles_as_u32()
     }
 
