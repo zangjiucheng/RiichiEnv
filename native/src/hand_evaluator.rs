@@ -1,11 +1,13 @@
 #![allow(clippy::useless_conversion)]
 use crate::agari;
+use crate::errors::RiichiResult;
 use crate::score;
 use crate::types::{Conditions, Hand, Meld, MeldType, WinResult, Wind};
 use crate::yaku;
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
 
-#[pyclass]
+#[cfg_attr(feature = "python", pyclass)]
 pub struct HandEvaluator {
     pub hand: Hand,      // Normalised for agari detection
     pub full_hand: Hand, // Full counts for dora/yaku
@@ -13,15 +15,12 @@ pub struct HandEvaluator {
     pub aka_dora_count: u8,
 }
 
-#[pymethods]
 impl HandEvaluator {
-    #[staticmethod]
-    pub fn hand_from_text(text: &str) -> PyResult<Self> {
+    pub fn hand_from_text(text: &str) -> RiichiResult<Self> {
         let (tiles, melds) = crate::parser::parse_hand_internal(text)?;
         Ok(Self::new(tiles, melds))
     }
-    #[new]
-    #[pyo3(signature = (tiles_136, melds=vec![]))]
+
     pub fn new(tiles_136: Vec<u8>, melds: Vec<Meld>) -> Self {
         let mut aka_dora_count = 0;
         let mut tiles_34 = Vec::with_capacity(tiles_136.len());
@@ -36,13 +35,11 @@ impl HandEvaluator {
         let mut full_hand = Hand::new(Some(tiles_34));
         let mut hand = full_hand.clone();
 
-        // Clone melds to avoid mutating the Python objects passed in
         let mut internal_melds = Vec::with_capacity(melds.len());
 
         for meld in &melds {
             let mut new_meld = meld.clone();
 
-            // Reduce Kongs to triplets for agari detection
             if new_meld.meld_type == MeldType::Daiminkan
                 || new_meld.meld_type == MeldType::Ankan
                 || new_meld.meld_type == MeldType::Kakan
@@ -53,7 +50,6 @@ impl HandEvaluator {
                 }
             }
 
-            // Convert meld tiles to 34-tile IDs
             let mut meld_tiles_34 = Vec::with_capacity(new_meld.tiles.len());
             for &t in &new_meld.tiles {
                 if t == 16 || t == 52 || t == 88 {
@@ -78,10 +74,9 @@ impl HandEvaluator {
         }
     }
 
-    #[pyo3(signature = (win_tile, dora_indicators=vec![], ura_indicators=vec![], conditions=None))]
     pub fn calc(
         &self,
-        win_tile: u8, // Renamed from win_tile_136
+        win_tile: u8,
         dora_indicators: Vec<u8>,
         ura_indicators: Vec<u8>,
         conditions: Option<Conditions>,
@@ -90,11 +85,9 @@ impl HandEvaluator {
         let conditions = conditions.unwrap_or_default();
         let win_tile_34 = win_tile_136 / 4;
 
-        // Clone and add win tile to create 14-tile hands for check
         let mut hand_14 = self.hand.clone();
         let mut full_hand_14 = self.full_hand.clone();
 
-        // Total tiles in agari-equivalent hand (Kans reduced to 3)
         let current_total: u8 = hand_14.counts.iter().sum::<u8>() + (self.melds.len() as u8 * 3);
 
         if current_total == 13 {
@@ -105,25 +98,21 @@ impl HandEvaluator {
         let is_agari = agari::is_agari(&mut hand_14);
 
         if !is_agari {
-            // has_win_shape is false here because the hand structure (e.g. 4 melds + 1 pair) is invalid.
-            // If the structure were valid but the hand lacked Yaku, has_win_shape would be true.
             return WinResult::new(false, false, 0, 0, 0, vec![], 0, 0, None, false);
         }
-        // Count normal doras in 14-tile hand
+
         let mut dora_count = 0;
         for &indicator_136 in &dora_indicators {
             let next_tile_34 = get_next_tile(indicator_136 / 4);
             dora_count += full_hand_14.counts[next_tile_34 as usize];
         }
 
-        // Count ura doras in 14-tile hand
         let mut ura_dora_count = 0;
         for &indicator_136 in &ura_indicators {
             let next_tile_34 = get_next_tile(indicator_136 / 4);
             ura_dora_count += full_hand_14.counts[next_tile_34 as usize];
         }
 
-        // Handle red win_tile
         let mut aka_dora = self.aka_dora_count;
         if current_total == 13 && (win_tile_136 == 16 || win_tile_136 == 52 || win_tile_136 == 88) {
             aka_dora += 1;
@@ -221,41 +210,77 @@ impl HandEvaluator {
     }
 }
 
+#[cfg(feature = "python")]
+#[pymethods]
+impl HandEvaluator {
+    #[staticmethod]
+    #[pyo3(name = "hand_from_text")]
+    pub fn hand_from_text_py(text: &str) -> PyResult<Self> {
+        Self::hand_from_text(text).map_err(Into::into)
+    }
+
+    #[new]
+    #[pyo3(signature = (tiles_136, melds=vec![]))]
+    pub fn py_new(tiles_136: Vec<u8>, melds: Vec<Meld>) -> Self {
+        Self::new(tiles_136, melds)
+    }
+
+    #[pyo3(signature = (win_tile, dora_indicators=vec![], ura_indicators=vec![], conditions=None))]
+    #[pyo3(name = "calc")]
+    pub fn calc_py(
+        &self,
+        win_tile: u8,
+        dora_indicators: Vec<u8>,
+        ura_indicators: Vec<u8>,
+        conditions: Option<Conditions>,
+    ) -> WinResult {
+        self.calc(win_tile, dora_indicators, ura_indicators, conditions)
+    }
+
+    #[pyo3(name = "is_tenpai")]
+    pub fn is_tenpai_py(&self) -> bool {
+        self.is_tenpai()
+    }
+
+    #[pyo3(name = "get_waits_u8")]
+    pub fn get_waits_u8_py(&self) -> Vec<u8> {
+        self.get_waits_u8()
+    }
+
+    #[pyo3(name = "get_waits")]
+    pub fn get_waits_py(&self) -> Vec<u32> {
+        self.get_waits()
+    }
+}
+
 fn get_next_tile(tile: u8) -> u8 {
     if tile < 9 {
-        // man
         if tile == 8 {
             0
         } else {
             tile + 1
         }
     } else if tile < 18 {
-        // pin
         if tile == 17 {
             9
         } else {
             tile + 1
         }
     } else if tile < 27 {
-        // sou
         if tile == 26 {
             18
         } else {
             tile + 1
         }
     } else if tile < 31 {
-        // winds
         if tile == 30 {
             27
         } else {
             tile + 1
         }
+    } else if tile == 33 {
+        31
     } else {
-        // dragons
-        if tile == 33 {
-            31
-        } else {
-            tile + 1
-        }
+        tile + 1
     }
 }

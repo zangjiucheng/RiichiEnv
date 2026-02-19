@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use pyo3::prelude::*;
-
 use serde_json::Value;
 
 use crate::action::{Action, ActionType, Phase};
+use crate::errors::{RiichiError, RiichiResult};
 use crate::observation::Observation;
 use crate::parser::tid_to_mjai;
 use crate::replay::Action as LogAction;
@@ -21,7 +20,7 @@ use legal_actions::GameStateLegalActions;
 use player::PlayerState;
 use wall::WallState;
 
-#[pyclass]
+#[cfg_attr(feature = "python", pyo3::pyclass)]
 #[derive(Debug, Clone)]
 pub struct GameState {
     pub wall: WallState,
@@ -222,7 +221,7 @@ impl GameState {
         pid: u8,
         env_action: &Action,
         log_action_str: &str,
-    ) -> PyResult<Observation> {
+    ) -> RiichiResult<Observation> {
         let original_phase = self.phase;
         let original_active_players = self.active_players.clone();
         let original_claims = self.current_claims.clone();
@@ -271,7 +270,7 @@ impl GameState {
         self.current_claims = original_claims;
 
         if !exists {
-            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+            return Err(RiichiError::new(format!(
                 "Replay desync:\n  Env action: {:?}\n  Log action: {}\n  Self state:\n    phase: {:?}\n    drawn: {:?}",
                 env_action,
                 log_action_str,

@@ -1,9 +1,12 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::types::{PyDict, PyDictMethods};
 use serde::{Deserialize, Serialize};
 
 use crate::action::{Action, ActionType};
+use crate::errors::{RiichiError, RiichiResult};
 use crate::shanten;
 use crate::types::{Meld, MeldType};
 use crate::yaku_checker;
@@ -60,49 +63,31 @@ fn get_next_tile(tile: u32) -> u8 {
     }
 }
 
-#[pyclass(module = "riichienv._riichienv")]
+#[cfg_attr(feature = "python", pyclass(module = "riichienv._riichienv", get_all))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
-    #[pyo3(get)]
     pub player_id: u8,
-    #[pyo3(get)]
     pub hands: Vec<Vec<u32>>,
-    #[pyo3(get)]
     pub melds: Vec<Vec<Meld>>,
-    #[pyo3(get)]
     pub discards: Vec<Vec<u32>>,
-    #[pyo3(get)]
     pub dora_indicators: Vec<u32>,
-    #[pyo3(get)]
     pub scores: Vec<i32>,
-    #[pyo3(get)]
     pub riichi_declared: Vec<bool>,
 
-    pub _legal_actions: Vec<Action>,
+    pub(crate) _legal_actions: Vec<Action>,
 
-    pub events: Vec<String>,
+    pub(crate) events: Vec<String>,
 
-    #[pyo3(get)]
     pub honba: u8,
-    #[pyo3(get)]
     pub riichi_sticks: u32,
-    #[pyo3(get)]
     pub round_wind: u8,
-    #[pyo3(get)]
     pub oya: u8,
-    #[pyo3(get)]
     pub kyoku_index: u8,
-    #[pyo3(get)]
     pub waits: Vec<u8>,
-    #[pyo3(get)]
     pub is_tenpai: bool,
-    #[pyo3(get)]
     pub tsumogiri_flags: Vec<Vec<bool>>,
-    #[pyo3(get)]
     pub riichi_sutehais: Vec<Option<u8>>,
-    #[pyo3(get)]
     pub last_tedashis: Vec<Option<u8>>,
-    #[pyo3(get)]
     pub last_discard: Option<u32>,
 }
 
@@ -908,9 +893,8 @@ impl Observation {
     }
 }
 
-#[pymethods]
+/// Pure Rust methods (no PyO3 dependency).
 impl Observation {
-    #[new]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         player_id: u8,
@@ -960,11 +944,99 @@ impl Observation {
             kyoku_index,
             waits,
             is_tenpai,
-            tsumogiri_flags: vec![vec![]; 4], // Initialize with empty vectors
+            tsumogiri_flags: vec![vec![]; 4],
             riichi_sutehais,
             last_tedashis,
             last_discard,
         }
+    }
+
+    pub fn legal_actions_method(&self) -> Vec<Action> {
+        self._legal_actions.clone()
+    }
+
+    pub fn find_action(&self, action_id: usize) -> Option<Action> {
+        self._legal_actions
+            .iter()
+            .find(|a| {
+                if let Ok(idx) = a.encode() {
+                    (idx as usize) == action_id
+                } else {
+                    false
+                }
+            })
+            .cloned()
+    }
+
+    pub fn new_events(&self) -> Vec<String> {
+        self.events.clone()
+    }
+
+    /// Serialize this Observation to a base64-encoded JSON string.
+    pub fn serialize_to_base64(&self) -> RiichiResult<String> {
+        let json = serde_json::to_vec(self)
+            .map_err(|e| RiichiError::new(format!("serialization failed: {e}")))?;
+        Ok(BASE64.encode(&json))
+    }
+
+    /// Deserialize an Observation from a base64-encoded JSON string.
+    pub fn deserialize_from_base64(s: &str) -> RiichiResult<Self> {
+        let bytes = BASE64
+            .decode(s)
+            .map_err(|e| RiichiError::new(format!("base64 decode failed: {e}")))?;
+        let obs: Observation = serde_json::from_slice(&bytes)
+            .map_err(|e| RiichiError::new(format!("JSON deserialize failed: {e}")))?;
+        Ok(obs)
+    }
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl Observation {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    pub fn py_new(
+        player_id: u8,
+        hands: Vec<Vec<u8>>,
+        melds: Vec<Vec<Meld>>,
+        discards: Vec<Vec<u8>>,
+        dora_indicators: Vec<u8>,
+        scores: Vec<i32>,
+        riichi_declared: Vec<bool>,
+        legal_actions: Vec<Action>,
+        events: Vec<String>,
+        honba: u8,
+        riichi_sticks: u32,
+        round_wind: u8,
+        oya: u8,
+        kyoku_index: u8,
+        waits: Vec<u8>,
+        is_tenpai: bool,
+        riichi_sutehais: Vec<Option<u8>>,
+        last_tedashis: Vec<Option<u8>>,
+        last_discard: Option<u32>,
+    ) -> Self {
+        Self::new(
+            player_id,
+            hands,
+            melds,
+            discards,
+            dora_indicators,
+            scores,
+            riichi_declared,
+            legal_actions,
+            events,
+            honba,
+            riichi_sticks,
+            round_wind,
+            oya,
+            kyoku_index,
+            waits,
+            is_tenpai,
+            riichi_sutehais,
+            last_tedashis,
+            last_discard,
+        )
     }
 
     #[getter]
@@ -989,8 +1061,8 @@ impl Observation {
     }
 
     #[pyo3(name = "legal_actions")]
-    pub fn legal_actions_method(&self) -> Vec<Action> {
-        self._legal_actions.clone()
+    pub fn legal_actions_method_py(&self) -> Vec<Action> {
+        self.legal_actions_method()
     }
 
     #[pyo3(name = "mask")]
@@ -1006,18 +1078,9 @@ impl Observation {
         Ok(pyo3::types::PyBytes::new(py, &mask))
     }
 
-    #[pyo3(signature = (action_id))]
-    pub fn find_action(&self, action_id: usize) -> Option<Action> {
-        self._legal_actions
-            .iter()
-            .find(|a| {
-                if let Ok(idx) = a.encode() {
-                    (idx as usize) == action_id
-                } else {
-                    false
-                }
-            })
-            .cloned()
+    #[pyo3(name = "find_action", signature = (action_id))]
+    pub fn find_action_py(&self, action_id: usize) -> Option<Action> {
+        self.find_action(action_id)
     }
 
     #[pyo3(signature = (mjai_data))]
@@ -1047,7 +1110,6 @@ impl Observation {
                 .flatten()
                 .and_then(|x| x.extract::<i8>().ok())
                 .unwrap_or(-1);
-            // For now, tile is string "3m" etc.
             let tile_str: String = dict
                 .get_item("pai")
                 .ok()
@@ -1095,21 +1157,11 @@ impl Observation {
                     if !tile_str.is_empty() {
                         if let Some(t) = a.tile {
                             let t_str = crate::parser::tid_to_mjai(t);
-                            // MJAI sometimes uses "5p" for red 5 distinctively or "5pr"
-                            // If mismatched, try to match the base.
                             if t_str == tile_str {
                                 return true;
                             }
-                            // Allow "5p" to match "5pr" if strict match failed?
-                            // Or better: if mjai says "5p", it means non-red 5.
-                            // If mjai says "5pr" (or however it denotes red), it means red 5.
-                            // tid_to_mjai outputs "5mr" for red.
-                            // If input is "5m", it shouldn't match "5mr".
                             return false;
                         } else {
-                            // Action has no tile (e.g. Riichi), but tile_str provided?
-                            // Should ideally not happen for Discard/Chi/Pon.
-                            // But if it does, mismatch.
                             return false;
                         }
                     }
@@ -1129,8 +1181,9 @@ impl Observation {
         None
     }
 
-    pub fn new_events(&self) -> Vec<String> {
-        self.events.clone()
+    #[pyo3(name = "new_events")]
+    pub fn new_events_py(&self) -> Vec<String> {
+        self.new_events()
     }
 
     pub fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
@@ -1155,7 +1208,7 @@ impl Observation {
 
         let actions_py = pyo3::types::PyList::empty(py);
         for a in &self._legal_actions {
-            actions_py.append(a.to_dict(py)?)?;
+            actions_py.append(a.to_dict_py(py)?)?;
         }
         dict.set_item("legal_actions", actions_py)?;
 
@@ -1169,23 +1222,16 @@ impl Observation {
     }
 
     /// Serialize this Observation to a base64-encoded JSON string.
-    pub fn serialize_to_base64(&self) -> PyResult<String> {
-        let json = serde_json::to_vec(self).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(format!("serialization failed: {e}"))
-        })?;
-        Ok(BASE64.encode(&json))
+    #[pyo3(name = "serialize_to_base64")]
+    pub fn serialize_to_base64_py(&self) -> PyResult<String> {
+        self.serialize_to_base64().map_err(Into::into)
     }
 
     /// Deserialize an Observation from a base64-encoded JSON string.
     #[staticmethod]
-    pub fn deserialize_from_base64(s: &str) -> PyResult<Self> {
-        let bytes = BASE64.decode(s).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(format!("base64 decode failed: {e}"))
-        })?;
-        let obs: Observation = serde_json::from_slice(&bytes).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(format!("JSON deserialize failed: {e}"))
-        })?;
-        Ok(obs)
+    #[pyo3(name = "deserialize_from_base64")]
+    pub fn deserialize_from_base64_py(s: &str) -> PyResult<Self> {
+        Self::deserialize_from_base64(s).map_err(Into::into)
     }
 
     /// Encode discard history with exponential decay weighting.

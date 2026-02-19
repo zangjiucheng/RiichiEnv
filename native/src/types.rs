@@ -1,3 +1,4 @@
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -47,7 +48,7 @@ impl Default for Hand {
     }
 }
 
-#[pyclass(eq, eq_int)]
+#[cfg_attr(feature = "python", pyclass(eq, eq_int))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MeldType {
     Chi = 0,
@@ -58,17 +59,7 @@ pub enum MeldType {
 }
 
 /// Represents wind directions in mahjong, used for player seats and round wind.
-///
-/// In mahjong, winds are assigned to players to indicate their seating position
-/// and also used to denote the current round. The values map to integers as follows:
-/// - East = 0: The dealer (oya) position in most rulesets
-/// - South = 1: Player to dealer's right
-/// - West = 2: Player across from dealer
-/// - North = 3: Player to dealer's left
-///
-/// Wind values are used in scoring calculations and yaku determination,
-/// particularly for yakuhai (wind honor tiles) and determining dealer bonuses.
-#[pyclass(eq, eq_int)]
+#[cfg_attr(feature = "python", pyclass(eq, eq_int))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Wind {
     #[default]
@@ -90,6 +81,7 @@ impl From<u8> for Wind {
     }
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl Wind {
     fn __hash__(&self) -> isize {
@@ -97,26 +89,19 @@ impl Wind {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "python", pyclass)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Meld {
-    #[pyo3(get, set)]
     pub meld_type: MeldType,
     pub tiles: Vec<u8>,
-    #[pyo3(get, set)]
     pub opened: bool,
-    #[pyo3(get, set)]
     pub from_who: i8,
     /// The tile claimed from another player's discard (for chi/pon/daiminkan).
     /// None for ankan/kakan or melds not involving a discard claim.
-    #[pyo3(get)]
     pub called_tile: Option<u8>,
 }
 
-#[pymethods]
 impl Meld {
-    #[new]
-    #[pyo3(signature = (meld_type, tiles, opened, from_who=-1, called_tile=None))]
     pub fn new(
         meld_type: MeldType,
         tiles: Vec<u8>,
@@ -133,54 +118,97 @@ impl Meld {
         }
     }
 
-    #[getter]
-    pub fn tiles(&self) -> Vec<u32> {
+    pub fn tiles_as_u32(&self) -> Vec<u32> {
         self.tiles.iter().map(|&t| t as u32).collect()
+    }
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl Meld {
+    #[new]
+    #[pyo3(signature = (meld_type, tiles, opened, from_who=-1, called_tile=None))]
+    pub fn py_new(
+        meld_type: MeldType,
+        tiles: Vec<u8>,
+        opened: bool,
+        from_who: i8,
+        called_tile: Option<u8>,
+    ) -> Self {
+        Self::new(meld_type, tiles, opened, from_who, called_tile)
+    }
+
+    #[getter]
+    pub fn get_meld_type(&self) -> MeldType {
+        self.meld_type
+    }
+
+    #[setter]
+    pub fn set_meld_type(&mut self, meld_type: MeldType) {
+        self.meld_type = meld_type;
+    }
+
+    #[getter]
+    pub fn get_tiles(&self) -> Vec<u32> {
+        self.tiles_as_u32()
     }
 
     #[setter]
     pub fn set_tiles(&mut self, tiles: Vec<u8>) {
         self.tiles = tiles;
     }
+
+    #[getter]
+    pub fn get_opened(&self) -> bool {
+        self.opened
+    }
+
+    #[setter]
+    pub fn set_opened(&mut self, opened: bool) {
+        self.opened = opened;
+    }
+
+    #[getter]
+    pub fn get_from_who(&self) -> i8 {
+        self.from_who
+    }
+
+    #[setter]
+    pub fn set_from_who(&mut self, from_who: i8) {
+        self.from_who = from_who;
+    }
+
+    #[getter]
+    pub fn get_called_tile(&self) -> Option<u8> {
+        self.called_tile
+    }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "python", pyclass(get_all, set_all))]
 #[derive(Debug, Clone, Default)]
 pub struct Conditions {
-    #[pyo3(get, set)]
     pub tsumo: bool,
-    #[pyo3(get, set)]
     pub riichi: bool,
-    #[pyo3(get, set)]
     pub double_riichi: bool,
-    #[pyo3(get, set)]
     pub ippatsu: bool,
-    #[pyo3(get, set)]
     pub haitei: bool,
-    #[pyo3(get, set)]
     pub houtei: bool,
-    #[pyo3(get, set)]
     pub rinshan: bool,
-    #[pyo3(get, set)]
     pub player_wind: Wind,
-    #[pyo3(get, set)]
     pub round_wind: Wind,
-    #[pyo3(get, set)]
     pub chankan: bool,
-    #[pyo3(get, set)]
     pub tsumo_first_turn: bool,
-    #[pyo3(get, set)]
     pub riichi_sticks: u32,
-    #[pyo3(get, set)]
     pub honba: u32,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl Conditions {
     #[allow(clippy::too_many_arguments)]
     #[new]
     #[pyo3(signature = (tsumo=false, riichi=false, double_riichi=false, ippatsu=false, haitei=false, houtei=false, rinshan=false, chankan=false, tsumo_first_turn=false, player_wind=Wind::East, round_wind=Wind::East, riichi_sticks=0, honba=0))]
-    pub fn new(
+    pub fn py_new(
         tsumo: bool,
         riichi: bool,
         double_riichi: bool,
@@ -213,36 +241,23 @@ impl Conditions {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "python", pyclass(get_all, set_all))]
 #[derive(Debug, Clone)]
 pub struct WinResult {
-    #[pyo3(get, set)]
     pub is_win: bool,
-    #[pyo3(get, set)]
     pub yakuman: bool,
-    #[pyo3(get, set)]
     pub ron_agari: u32,
-    #[pyo3(get, set)]
     pub tsumo_agari_oya: u32,
-    #[pyo3(get, set)]
     pub tsumo_agari_ko: u32,
-    #[pyo3(get, set)]
     pub yaku: Vec<u32>,
-    #[pyo3(get, set)]
     pub han: u32,
-    #[pyo3(get, set)]
     pub fu: u32,
-    #[pyo3(get, set)]
     pub pao_payer: Option<u8>,
-    #[pyo3(get, set)]
     pub has_win_shape: bool,
 }
 
-#[pymethods]
 impl WinResult {
     #[allow(clippy::too_many_arguments)]
-    #[new]
-    #[pyo3(signature = (is_win, yakuman=false, ron_agari=0, tsumo_agari_oya=0, tsumo_agari_ko=0, yaku=vec![], han=0, fu=0, pao_payer=None, has_win_shape=false))]
     pub fn new(
         is_win: bool,
         yakuman: bool,
@@ -267,6 +282,39 @@ impl WinResult {
             pao_payer,
             has_win_shape,
         }
+    }
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl WinResult {
+    #[allow(clippy::too_many_arguments)]
+    #[new]
+    #[pyo3(signature = (is_win, yakuman=false, ron_agari=0, tsumo_agari_oya=0, tsumo_agari_ko=0, yaku=vec![], han=0, fu=0, pao_payer=None, has_win_shape=false))]
+    pub fn py_new(
+        is_win: bool,
+        yakuman: bool,
+        ron_agari: u32,
+        tsumo_agari_oya: u32,
+        tsumo_agari_ko: u32,
+        yaku: Vec<u32>,
+        han: u32,
+        fu: u32,
+        pao_payer: Option<u8>,
+        has_win_shape: bool,
+    ) -> Self {
+        Self::new(
+            is_win,
+            yakuman,
+            ron_agari,
+            tsumo_agari_oya,
+            tsumo_agari_ko,
+            yaku,
+            han,
+            fu,
+            pao_payer,
+            has_win_shape,
+        )
     }
 }
 

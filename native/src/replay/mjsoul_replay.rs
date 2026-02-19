@@ -1,19 +1,29 @@
+#[cfg(feature = "python")]
 use flate2::read::GzDecoder;
+#[cfg(feature = "python")]
 use pyo3::exceptions::PyValueError;
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "python")]
 use std::fs::File;
+#[cfg(feature = "python")]
 use std::io::{BufReader, Read};
+#[cfg(feature = "python")]
 use std::sync::Arc;
 
+#[cfg(feature = "python")]
 use crate::replay::{Action, HuleData, LogKyoku, TileConverter, WinResultContextIterator};
+#[cfg(feature = "python")]
 use crate::types::MeldType;
 
+#[cfg(feature = "python")]
 #[pyclass(module = "riichienv._riichienv")]
 pub struct MjSoulReplay {
     pub rounds: Vec<LogKyoku>,
 }
 
+#[cfg(feature = "python")]
 #[derive(Debug)]
 #[pyclass(module = "riichienv._riichienv")]
 pub struct KyokuIterator {
@@ -22,6 +32,7 @@ pub struct KyokuIterator {
     len: usize,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl KyokuIterator {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -148,6 +159,7 @@ pub struct GameLog {
     pub rounds: Vec<Vec<RawAction>>,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl MjSoulReplay {
     #[staticmethod]
@@ -360,6 +372,7 @@ impl MjSoulReplay {
     }
 }
 
+#[cfg(feature = "python")]
 impl MjSoulReplay {
     fn kyoku_from_raw_actions(raw_actions: Vec<RawAction>) -> LogKyoku {
         let mut scores = Vec::new();

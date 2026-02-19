@@ -2,7 +2,6 @@
 mod unit_tests {
     use crate::action::Phase;
     use crate::agari::{is_agari, is_chiitoitsu, is_kokushi};
-    use crate::env::RiichiEnv;
     use crate::score::calculate_score;
     use crate::types::Hand;
 
@@ -148,20 +147,20 @@ mod unit_tests {
         assert!(res.yaku_ids.contains(&50));
     }
 
-    // --- Helper for creating RiichiEnv in tests ---
-    fn create_test_env(game_type: u8) -> RiichiEnv {
-        // Construct directly using new API or manual GameState construction
-        RiichiEnv {
+    #[cfg(feature = "python")]
+    fn create_test_env(game_type: u8) -> crate::env::RiichiEnv {
+        crate::env::RiichiEnv {
             state: crate::state::GameState::new(
                 game_type,
-                false, // skip_mjai_logging
-                None,  // seed
-                0,     // round_wind
+                false,
+                None,
+                0,
                 crate::rule::GameRule::default(),
             ),
         }
     }
 
+    #[cfg(feature = "python")]
     #[test]
     fn test_seeded_shuffle_changes_between_rounds() {
         let mut env = create_test_env(2);
@@ -179,14 +178,10 @@ mod unit_tests {
         );
     }
 
+    #[cfg(feature = "python")]
     #[test]
     fn test_sudden_death_hanchan_logic() {
         use serde_json::Value;
-
-        // 4-player Hanchan (game_type 2)
-        // Scores < 30000. Round South 4 (Round Wind 1, Kyoku 3).
-        // Trigger Ryukyoku.
-        // Expect: Next round is West 1 (Round Wind 2, Kyoku 0). Game NOT done.
 
         let mut env = create_test_env(2);
         env.state.round_wind = 1;
@@ -196,14 +191,10 @@ mod unit_tests {
             env.state.players[i].score = 25000;
             env.state.players[i].nagashi_eligible = false;
         }
-        // We also need to set needs_initialize_next_round to false initially
         env.state.needs_initialize_next_round = false;
 
-        // Trigger Ryukyoku (draw)
         env.state._trigger_ryukyoku("exhaustive_draw");
-        // This sets needs_initialize_next_round = true, pending_oya_won = false (if nouten), pending_is_draw = true
 
-        // Simulate step calling initialize_next_round
         if env.state.needs_initialize_next_round {
             env.state
                 ._initialize_next_round(env.state.pending_oya_won, env.state.pending_is_draw);
@@ -218,8 +209,6 @@ mod unit_tests {
         assert_eq!(env.state.kyoku_idx, 0, "Should be West 1 (Kyoku 0)");
         assert_eq!(env.state.oya, 0, "Oya should rotate to player 0");
 
-        // Now set scores > 30000 and trigger draw again.
-        // West 1. Oya is 0.
         let new_scores = [31000, 25000, 24000, 20000];
         for (player, &score) in env.state.players.iter_mut().zip(new_scores.iter()) {
             player.score = score;
@@ -237,8 +226,6 @@ mod unit_tests {
             "Game should be done (Score >= 30000 in West)"
         );
 
-        // Verify MJAI Event order
-        // Check logs for last sequence
         let logs = &env.state.mjai_log;
         let event_types: Vec<String> = logs
             .iter()
@@ -250,11 +237,9 @@ mod unit_tests {
             })
             .collect();
 
-        // Expect ryukyoku -> end_kyoku -> end_game
         let last_event = event_types.last().expect("Should have events");
         assert_eq!(last_event, "end_game");
 
-        // Check if ryukyoku is recently before it
         assert!(event_types.contains(&"ryukyoku".to_string()));
     }
 
@@ -269,6 +254,7 @@ mod unit_tests {
         assert!(waits.contains(&18)); // 1s
     }
 
+    #[cfg(feature = "python")]
     #[test]
     fn test_kuikae_deadlock_repro() {
         use crate::action::{Action, ActionType};
@@ -369,9 +355,9 @@ mod unit_tests {
         assert!(res9p.han >= 3, "9p should be Junchan (>= 3 Han)"); // Junchan (3)
     }
 
+    #[cfg(feature = "python")]
     #[test]
     fn test_tobi_ends_game() {
-        // Test that the game ends when a player goes below 0 points (tobi/bankruptcy)
         let mut env = create_test_env(4);
         env.state.game_mode = 2; // 4p-red-half (Hanchan)
 
@@ -540,9 +526,9 @@ mod unit_tests {
         );
     }
 
+    #[cfg(feature = "python")]
     #[test]
     fn test_no_tobi_with_positive_scores() {
-        // Test that the game continues when all players have positive scores
         let mut env = create_test_env(4);
         env.state.game_mode = 2; // 4p-red-half (Hanchan)
         env.state.round_wind = 0; // East round

@@ -27,6 +27,20 @@ pytest...................................................................Passed
 ruff-format..............................................................Passed
 ```
 
+## Feature Flags
+
+The Rust crate uses feature flags to separate the core library from PyO3 bindings:
+
+| Feature | Description |
+|---|---|
+| *(none)* | Pure Rust library — no Python dependency |
+| `python` | Enables PyO3 bindings (`#[pyclass]`, `#[pymethods]`, etc.) |
+| `extension-module` | Implies `python` + `pyo3/extension-module` — used by maturin |
+
+`default = []` — by default no features are enabled, so `cargo build` produces a pure Rust library.
+
+When building the Python extension via `maturin`, the `extension-module` feature is activated automatically (configured in `pyproject.toml` under `[tool.maturin]`).
+
 ## Rust Development
 
 ### Setup Rust Environment
@@ -36,9 +50,20 @@ ruff-format..............................................................Passed
 ```
 
 ### Compilation Check
-To check if the Rust code compiles:
+
+To check if the Rust code compiles (pure Rust, no Python dependency):
 ```bash
-cargo check
+cargo check -p riichienv --no-default-features
+```
+
+To check with Python bindings enabled:
+```bash
+cargo check -p riichienv --features python
+```
+
+To check as maturin would build it:
+```bash
+cargo check -p riichienv --features extension-module
 ```
 
 ### Formatting
@@ -50,13 +75,21 @@ cargo fmt
 ### Linting
 We use `clippy`. To run Rust linters:
 ```bash
-cargo clippy
+# Pure Rust mode
+cargo clippy -p riichienv --no-default-features
+
+# With Python bindings
+cargo clippy -p riichienv --features python
 ```
 
 ### Unit Tests
 To run Rust unit tests:
 ```bash
-cargo test
+# Pure Rust tests (agari, score, yaku, hand_evaluator, mjai_event, etc.)
+cargo test -p riichienv --no-default-features
+
+# All tests including Python-dependent ones (RiichiEnv integration tests)
+cargo test -p riichienv --features python
 ```
 
 ### Build
@@ -66,6 +99,54 @@ uv run maturin develop
 # For release build (optimized):
 uv run maturin develop --release
 ```
+
+### Conditional Compilation Patterns
+
+When adding new code, follow these patterns for `#[cfg(feature = "python")]`:
+
+**Struct definitions** — use `cfg_attr` on the struct, not on fields:
+```rust
+// For structs where all fields should be readable from Python:
+#[cfg_attr(feature = "python", pyclass(get_all))]
+pub struct Foo {
+    pub field_a: u32,
+    pub field_b: String,
+}
+
+// For structs with mixed access, use manual #[getter]/#[setter] in pymethods:
+#[cfg_attr(feature = "python", pyclass)]
+pub struct Bar {
+    pub field_a: u32,       // will have manual getter
+    pub(crate) internal: i32, // not exposed to Python
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl Bar {
+    #[getter]
+    fn get_field_a(&self) -> u32 { self.field_a }
+}
+```
+
+> **Note:** `#[cfg_attr(feature = "python", pyo3(get))]` on struct fields does NOT work. The `pyo3(get)` attribute is consumed by the `pyclass` proc macro, and when `pyclass` is applied via `cfg_attr`, the compiler cannot resolve `pyo3` as a known attribute. Use `get_all`/`set_all` on the `pyclass(...)` attribute or manual `#[getter]` methods instead.
+
+**Pure Rust logic** — keep it in a regular `impl` block. Python wrappers go in a separate `#[cfg(feature = "python")] #[pymethods]` block with a `_py` suffix:
+```rust
+impl Foo {
+    pub fn compute(&self) -> RiichiResult<u32> { /* ... */ }
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl Foo {
+    #[pyo3(name = "compute")]
+    pub fn compute_py(&self) -> PyResult<u32> {
+        self.compute().map_err(Into::into)
+    }
+}
+```
+
+**Error handling** — use `RiichiError` / `RiichiResult<T>` (defined in `errors.rs`) for pure Rust code. The `From<RiichiError> for PyErr` conversion is provided when the `python` feature is enabled, so `?` works seamlessly in Python wrappers.
 
 ## Python Development
 

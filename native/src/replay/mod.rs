@@ -3,19 +3,26 @@
  */
 #![allow(clippy::useless_conversion)]
 
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::types::{PyDict, PyDictMethods, PyList, PyListMethods};
 use std::sync::Arc;
 
 use crate::action::Action as EnvAction;
+#[cfg(feature = "python")]
 use crate::hand_evaluator::HandEvaluator;
-use crate::types::{Conditions, Meld, MeldType, WinResult};
+#[cfg(feature = "python")]
+use crate::types::WinResult;
+use crate::types::{Conditions, Meld, MeldType};
 
 pub mod mjai_replay;
 pub mod mjsoul_replay;
 
 pub use mjai_replay::MjaiEvent;
+#[cfg(feature = "python")]
 pub use mjai_replay::MjaiReplay;
+#[cfg(feature = "python")]
 pub use mjsoul_replay::MjSoulReplay;
 
 #[derive(Clone, Debug)]
@@ -76,6 +83,7 @@ pub struct HuleData {
     pub point_zimo_xian: u32,
 }
 
+#[cfg(feature = "python")]
 #[pyclass(module = "riichienv._riichienv")]
 pub struct KyokuStepIterator {
     state: crate::state::GameState,
@@ -86,6 +94,7 @@ pub struct KyokuStepIterator {
     skip_single_action: bool,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl KyokuStepIterator {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -355,42 +364,89 @@ impl KyokuStepIterator {
     }
 }
 
-#[pyclass(name = "Kyoku", module = "riichienv._riichienv")]
+#[cfg_attr(
+    feature = "python",
+    pyclass(name = "Kyoku", module = "riichienv._riichienv")
+)]
 #[derive(Clone)]
 pub struct LogKyoku {
-    #[pyo3(get)]
     pub scores: Vec<i32>,
-    #[pyo3(get)]
     pub doras: Vec<u8>,
-    #[pyo3(get)]
     pub ura_doras: Vec<u8>,
-    #[pyo3(get)]
     pub hands: Vec<Vec<u8>>,
-    #[pyo3(get)]
     pub chang: u8,
-    #[pyo3(get)]
     pub ju: u8,
-    #[pyo3(get)]
     pub ben: u8,
-    #[pyo3(get)]
     pub liqibang: u8,
-    #[pyo3(get)]
     pub left_tile_count: u8,
-    #[pyo3(get)]
     pub end_scores: Vec<i32>,
-    #[pyo3(get)]
     pub wliqi: Vec<bool>,
-    #[pyo3(get)]
     pub paishan: Option<String>,
-    pub actions: Arc<[Action]>,
-    #[pyo3(get)]
+    pub(crate) actions: Arc<[Action]>,
     pub rule: crate::rule::GameRule,
-    #[pyo3(get)]
     pub game_end_scores: Option<Vec<i32>>,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl LogKyoku {
+    #[getter]
+    fn get_scores(&self) -> Vec<i32> {
+        self.scores.clone()
+    }
+    #[getter]
+    fn get_doras(&self) -> Vec<u8> {
+        self.doras.clone()
+    }
+    #[getter]
+    fn get_ura_doras(&self) -> Vec<u8> {
+        self.ura_doras.clone()
+    }
+    #[getter]
+    fn get_hands(&self) -> Vec<Vec<u8>> {
+        self.hands.clone()
+    }
+    #[getter]
+    fn get_chang(&self) -> u8 {
+        self.chang
+    }
+    #[getter]
+    fn get_ju(&self) -> u8 {
+        self.ju
+    }
+    #[getter]
+    fn get_ben(&self) -> u8 {
+        self.ben
+    }
+    #[getter]
+    fn get_liqibang(&self) -> u8 {
+        self.liqibang
+    }
+    #[getter]
+    fn get_left_tile_count(&self) -> u8 {
+        self.left_tile_count
+    }
+    #[getter]
+    fn get_end_scores(&self) -> Vec<i32> {
+        self.end_scores.clone()
+    }
+    #[getter]
+    fn get_wliqi(&self) -> Vec<bool> {
+        self.wliqi.clone()
+    }
+    #[getter]
+    fn get_paishan(&self) -> Option<String> {
+        self.paishan.clone()
+    }
+    #[getter]
+    fn get_rule(&self) -> crate::rule::GameRule {
+        self.rule
+    }
+    #[getter]
+    fn get_game_end_scores(&self) -> Option<Vec<i32>> {
+        self.game_end_scores.clone()
+    }
+
     fn take_win_result_contexts(&self) -> PyResult<WinResultContextIterator> {
         Ok(WinResultContextIterator::new(self.clone()))
     }
@@ -807,6 +863,7 @@ impl LogKyoku {
     }
 }
 
+#[cfg(feature = "python")]
 #[pyclass(module = "riichienv._riichienv")]
 pub struct WinResultContextIterator {
     kyoku: LogKyoku,
@@ -829,6 +886,7 @@ pub struct WinResultContextIterator {
     pending_minkan_doras: u8,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl WinResultContextIterator {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -840,7 +898,7 @@ impl WinResultContextIterator {
     }
 }
 
-// Helper to parse paishan string
+#[cfg(feature = "python")]
 fn parse_paishan(s: &str) -> Vec<u8> {
     let mut wall = Vec::new();
     let mut chars = s.chars();
@@ -853,6 +911,7 @@ fn parse_paishan(s: &str) -> Vec<u8> {
     wall
 }
 
+#[cfg(feature = "python")]
 impl WinResultContextIterator {
     pub fn new(kyoku: LogKyoku) -> Self {
         let wall = if let Some(ref p) = kyoku.paishan {
@@ -1263,6 +1322,7 @@ impl WinResultContextIterator {
     }
 }
 
+#[cfg(feature = "python")]
 #[pyclass(module = "riichienv._riichienv")]
 pub struct WinResultContext {
     pub seat: u8,
@@ -1278,6 +1338,7 @@ pub struct WinResultContext {
     pub actual: WinResult,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl WinResultContext {
     #[getter]

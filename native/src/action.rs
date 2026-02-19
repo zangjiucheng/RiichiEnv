@@ -1,11 +1,17 @@
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::types::{PyDict, PyDictMethods};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::errors::{RiichiError, RiichiResult};
 use crate::parser::tid_to_mjai;
 
-#[pyclass(module = "riichienv._riichienv", eq, eq_int)]
+#[cfg_attr(
+    feature = "python",
+    pyclass(module = "riichienv._riichienv", eq, eq_int)
+)]
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Phase {
@@ -13,6 +19,7 @@ pub enum Phase {
     WaitResponse = 1,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl Phase {
     fn __hash__(&self) -> i32 {
@@ -20,7 +27,10 @@ impl Phase {
     }
 }
 
-#[pyclass(module = "riichienv._riichienv", eq, eq_int)]
+#[cfg_attr(
+    feature = "python",
+    pyclass(module = "riichienv._riichienv", eq, eq_int)
+)]
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ActionType {
@@ -37,6 +47,7 @@ pub enum ActionType {
     KyushuKyuhai = 10,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl ActionType {
     fn __hash__(&self) -> i32 {
@@ -44,20 +55,15 @@ impl ActionType {
     }
 }
 
-#[pyclass(module = "riichienv._riichienv")]
+#[cfg_attr(feature = "python", pyclass(module = "riichienv._riichienv"))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Action {
-    #[pyo3(get, set)]
     pub action_type: ActionType,
-    #[pyo3(get, set)]
     pub tile: Option<u8>,
     pub consume_tiles: Vec<u8>,
 }
 
-#[pymethods]
 impl Action {
-    #[new]
-    #[pyo3(signature = (r#type=ActionType::Pass, tile=None, consume_tiles=vec![]))]
     pub fn new(r#type: ActionType, tile: Option<u8>, consume_tiles: Vec<u8>) -> Self {
         let mut sorted_consume = consume_tiles;
         sorted_consume.sort();
@@ -68,17 +74,7 @@ impl Action {
         }
     }
 
-    pub fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
-        let dict = PyDict::new(py);
-        dict.set_item("type", self.action_type as i32)?;
-        dict.set_item("tile", self.tile)?;
-
-        let cons: Vec<u32> = self.consume_tiles.iter().map(|&x| x as u32).collect();
-        dict.set_item("consume_tiles", cons)?;
-        Ok(dict.unbind().into())
-    }
-
-    pub fn to_mjai(&self) -> PyResult<String> {
+    pub fn to_mjai(&self) -> String {
         let type_str = match self.action_type {
             ActionType::Discard => "dahai",
             ActionType::Chi => "chi",
@@ -109,54 +105,37 @@ impl Action {
             data.insert("consumed".to_string(), serde_json::to_value(cons).unwrap());
         }
 
-        Ok(Value::Object(data).to_string())
+        Value::Object(data).to_string()
     }
 
-    fn __repr__(&self) -> String {
+    pub fn repr(&self) -> String {
         format!(
             "Action(action_type={:?}, tile={:?}, consume_tiles={:?})",
             self.action_type, self.tile, self.consume_tiles
         )
     }
 
-    fn __str__(&self) -> String {
-        self.__repr__()
-    }
-
-    #[getter]
-    fn get_consume_tiles(&self) -> Vec<u32> {
-        self.consume_tiles.iter().map(|&x| x as u32).collect()
-    }
-
-    #[setter]
-    fn set_consume_tiles(&mut self, value: Vec<u8>) {
-        self.consume_tiles = value;
-    }
-
-    pub fn encode(&self) -> PyResult<i32> {
+    pub fn encode(&self) -> RiichiResult<i32> {
         match self.action_type {
             ActionType::Discard => {
                 if let Some(tile) = self.tile {
                     Ok((tile as i32) / 4)
                 } else {
-                    Err(pyo3::exceptions::PyValueError::new_err(
-                        "Discard action requires a tile",
-                    ))
+                    Err(RiichiError::new("Discard action requires a tile"))
                 }
             }
             ActionType::Riichi => Ok(37),
             ActionType::Chi => {
                 if let Some(target) = self.tile {
                     let target_34 = (target as i32) / 4;
-                    // consume_tiles should have the other 2 tiles.
                     let mut tiles_34: Vec<i32> =
                         self.consume_tiles.iter().map(|&x| (x as i32) / 4).collect();
                     tiles_34.push(target_34);
                     tiles_34.sort();
-                    tiles_34.dedup(); // Should be 3 consecutive numbers
+                    tiles_34.dedup();
 
                     if tiles_34.len() != 3 {
-                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        return Err(RiichiError::new(format!(
                             "Invalid Chi tiles: target={}, consumed={:?}",
                             target, self.consume_tiles
                         )));
@@ -170,9 +149,7 @@ impl Action {
                         Ok(40) // High
                     }
                 } else {
-                    Err(pyo3::exceptions::PyValueError::new_err(
-                        "Chi action requires a target tile",
-                    ))
+                    Err(RiichiError::new("Chi action requires a target tile"))
                 }
             }
             ActionType::Pon => Ok(41),
@@ -180,23 +157,90 @@ impl Action {
                 if let Some(tile) = self.tile {
                     Ok(42 + (tile as i32) / 4)
                 } else {
-                    Err(pyo3::exceptions::PyValueError::new_err(
-                        "Daiminkan action requires a tile",
-                    ))
+                    Err(RiichiError::new("Daiminkan action requires a tile"))
                 }
             }
             ActionType::Ankan | ActionType::Kakan => {
                 if let Some(first) = self.consume_tiles.first() {
                     Ok(42 + (*first as i32) / 4)
                 } else {
-                    Err(pyo3::exceptions::PyValueError::new_err(
+                    Err(RiichiError::new(
                         "Ankan/Kakan action requires consumed tiles",
                     ))
                 }
             }
             ActionType::Ron | ActionType::Tsumo => Ok(79),
-            ActionType::KyushuKyuhai => Ok(80), // Ryukyoku
+            ActionType::KyushuKyuhai => Ok(80),
             ActionType::Pass => Ok(81),
         }
+    }
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl Action {
+    #[new]
+    #[pyo3(signature = (r#type=ActionType::Pass, tile=None, consume_tiles=vec![]))]
+    pub fn py_new(r#type: ActionType, tile: Option<u8>, consume_tiles: Vec<u8>) -> Self {
+        Self::new(r#type, tile, consume_tiles)
+    }
+
+    #[pyo3(name = "to_dict")]
+    pub fn to_dict_py<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        let dict = PyDict::new(py);
+        dict.set_item("type", self.action_type as i32)?;
+        dict.set_item("tile", self.tile)?;
+
+        let cons: Vec<u32> = self.consume_tiles.iter().map(|&x| x as u32).collect();
+        dict.set_item("consume_tiles", cons)?;
+        Ok(dict.unbind().into())
+    }
+
+    #[pyo3(name = "to_mjai")]
+    pub fn to_mjai_py(&self) -> PyResult<String> {
+        Ok(self.to_mjai())
+    }
+
+    fn __repr__(&self) -> String {
+        self.repr()
+    }
+
+    fn __str__(&self) -> String {
+        self.repr()
+    }
+
+    #[getter]
+    fn get_action_type(&self) -> ActionType {
+        self.action_type
+    }
+
+    #[setter]
+    fn set_action_type(&mut self, action_type: ActionType) {
+        self.action_type = action_type;
+    }
+
+    #[getter]
+    fn get_tile(&self) -> Option<u8> {
+        self.tile
+    }
+
+    #[setter]
+    fn set_tile(&mut self, tile: Option<u8>) {
+        self.tile = tile;
+    }
+
+    #[getter]
+    fn get_consume_tiles(&self) -> Vec<u32> {
+        self.consume_tiles.iter().map(|&x| x as u32).collect()
+    }
+
+    #[setter]
+    fn set_consume_tiles(&mut self, value: Vec<u8>) {
+        self.consume_tiles = value;
+    }
+
+    #[pyo3(name = "encode")]
+    pub fn encode_py(&self) -> PyResult<i32> {
+        self.encode().map_err(Into::into)
     }
 }

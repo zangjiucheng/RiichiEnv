@@ -1,24 +1,34 @@
+#[cfg(feature = "python")]
 use flate2::read::GzDecoder;
+#[cfg(feature = "python")]
 use pyo3::exceptions::PyValueError;
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "python")]
 use std::fs::File;
+#[cfg(feature = "python")]
 use std::io::{BufRead, BufReader};
+#[cfg(feature = "python")]
 use std::sync::Arc;
 
 use crate::parser::mjai_to_tid;
+#[cfg(feature = "python")]
 use crate::replay::{Action, HuleData, LogKyoku};
+#[cfg(feature = "python")]
 use crate::types::MeldType;
 
 fn parse_mjai_tile(s: &str) -> u8 {
     mjai_to_tid(s).unwrap_or(0)
 }
 
+#[cfg(feature = "python")]
 #[pyclass]
 pub struct MjaiReplay {
     pub rounds: Vec<LogKyoku>,
 }
 
+#[cfg(feature = "python")]
 #[derive(Debug)]
 #[pyclass]
 pub struct KyokuIterator {
@@ -27,6 +37,7 @@ pub struct KyokuIterator {
     len: usize,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl KyokuIterator {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -139,7 +150,7 @@ pub enum MjaiEvent {
     Other,
 }
 
-// State for building a LogKyoku from MJAI stream
+#[cfg(feature = "python")]
 struct KyokuBuilder {
     actions: Vec<Action>,
     scores: Vec<i32>,
@@ -161,6 +172,7 @@ struct KyokuBuilder {
     has_calls: bool,
 }
 
+#[cfg(feature = "python")]
 impl KyokuBuilder {
     fn new(
         bakaze: String,
@@ -230,6 +242,7 @@ impl KyokuBuilder {
     }
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl MjaiReplay {
     #[staticmethod]
@@ -317,6 +330,7 @@ impl MjaiReplay {
     }
 }
 
+#[cfg(feature = "python")]
 impl MjaiReplay {
     fn process_event(builder: &mut KyokuBuilder, event: MjaiEvent) {
         match event {

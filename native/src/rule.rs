@@ -1,7 +1,11 @@
+#[cfg(feature = "python")]
 use pyo3::{pyclass, pymethods};
 use serde::{Deserialize, Serialize};
 
-#[pyclass(module = "riichienv._riichienv", eq, eq_int)]
+#[cfg_attr(
+    feature = "python",
+    pyclass(module = "riichienv._riichienv", eq, eq_int)
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum KuikaeMode {
     None = 0,
@@ -9,7 +13,10 @@ pub enum KuikaeMode {
     StrictFlank = 2,
 }
 
-#[pyclass(module = "riichienv._riichienv", eq, eq_int)]
+#[cfg_attr(
+    feature = "python",
+    pyclass(module = "riichienv._riichienv", eq, eq_int)
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum KanDoraTimingMode {
     /// Tenhou style: All kan types reveal dora after discard (後めくり)
@@ -24,20 +31,17 @@ pub enum KanDoraTimingMode {
     AfterDiscard = 2,
 }
 
-#[pyclass(module = "riichienv._riichienv")]
+#[cfg_attr(
+    feature = "python",
+    pyclass(module = "riichienv._riichienv", get_all, set_all)
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GameRule {
-    #[pyo3(get, set)]
     pub allows_ron_on_ankan_for_kokushi_musou: bool,
-    #[pyo3(get, set)]
     pub is_kokushi_musou_13machi_double: bool,
-    #[pyo3(get, set)]
     pub yakuman_pao_is_liability_only: bool,
-    #[pyo3(get, set)]
     pub allow_double_ron: bool,
-    #[pyo3(get, set)]
     pub kuikae_mode: KuikaeMode,
-    #[pyo3(get, set)]
     pub kan_dora_timing: KanDoraTimingMode,
 }
 
@@ -47,11 +51,36 @@ impl Default for GameRule {
     }
 }
 
+impl GameRule {
+    pub fn default_tenhou() -> Self {
+        Self {
+            allows_ron_on_ankan_for_kokushi_musou: false,
+            is_kokushi_musou_13machi_double: false,
+            yakuman_pao_is_liability_only: false,
+            allow_double_ron: true,
+            kuikae_mode: KuikaeMode::StrictFlank,
+            kan_dora_timing: KanDoraTimingMode::TenhouImmediate,
+        }
+    }
+
+    pub fn default_mjsoul() -> Self {
+        Self {
+            allows_ron_on_ankan_for_kokushi_musou: true,
+            is_kokushi_musou_13machi_double: true,
+            yakuman_pao_is_liability_only: true,
+            allow_double_ron: true,
+            kuikae_mode: KuikaeMode::StrictFlank,
+            kan_dora_timing: KanDoraTimingMode::MajsoulImmediate,
+        }
+    }
+}
+
+#[cfg(feature = "python")]
 #[pymethods]
 impl GameRule {
     #[new]
     #[pyo3(signature = (allows_ron_on_ankan_for_kokushi_musou=false, is_kokushi_musou_13machi_double=false, yakuman_pao_is_liability_only=false, allow_double_ron=true, kuikae_mode=KuikaeMode::StrictFlank, kan_dora_timing=KanDoraTimingMode::TenhouImmediate))]
-    pub fn new(
+    pub fn py_new(
         allows_ron_on_ankan_for_kokushi_musou: bool,
         is_kokushi_musou_13machi_double: bool,
         yakuman_pao_is_liability_only: bool,
@@ -70,27 +99,15 @@ impl GameRule {
     }
 
     #[staticmethod]
-    pub fn default_tenhou() -> Self {
-        Self {
-            allows_ron_on_ankan_for_kokushi_musou: false,
-            is_kokushi_musou_13machi_double: false,
-            yakuman_pao_is_liability_only: false,
-            allow_double_ron: true,
-            kuikae_mode: KuikaeMode::StrictFlank,
-            kan_dora_timing: KanDoraTimingMode::TenhouImmediate,
-        }
+    #[pyo3(name = "default_tenhou")]
+    pub fn py_default_tenhou() -> Self {
+        Self::default_tenhou()
     }
 
     #[staticmethod]
-    pub fn default_mjsoul() -> Self {
-        Self {
-            allows_ron_on_ankan_for_kokushi_musou: true,
-            is_kokushi_musou_13machi_double: true,
-            yakuman_pao_is_liability_only: true,
-            allow_double_ron: true,
-            kuikae_mode: KuikaeMode::StrictFlank,
-            kan_dora_timing: KanDoraTimingMode::MajsoulImmediate,
-        }
+    #[pyo3(name = "default_mjsoul")]
+    pub fn py_default_mjsoul() -> Self {
+        Self::default_mjsoul()
     }
 
     fn __repr__(&self) -> String {

@@ -1,19 +1,15 @@
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
 
-#[pyclass]
+#[cfg_attr(feature = "python", pyclass(get_all))]
 #[derive(Debug, Clone)]
 pub struct Score {
-    #[pyo3(get)]
     pub total: u32,
-    #[pyo3(get)]
     pub pay_ron: u32,
-    #[pyo3(get)]
     pub pay_tsumo_oya: u32,
-    #[pyo3(get)]
     pub pay_tsumo_ko: u32,
 }
 
-#[pyfunction]
 pub fn calculate_score(han: u8, fu: u8, is_oya: bool, is_tsumo: bool, honba: u32) -> Score {
     let mut s = if han >= 5 {
         let base_points = match han {
@@ -44,6 +40,13 @@ pub fn calculate_score(han: u8, fu: u8, is_oya: bool, is_tsumo: bool, honba: u32
         s.total += honba * 300;
     }
     s
+}
+
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(name = "calculate_score")]
+pub fn calculate_score_py(han: u8, fu: u8, is_oya: bool, is_tsumo: bool, honba: u32) -> Score {
+    calculate_score(han, fu, is_oya, is_tsumo, honba)
 }
 
 fn make_score_result(base_points: u32, is_oya: bool, is_tsumo: bool) -> Score {

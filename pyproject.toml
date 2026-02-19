@@ -32,6 +32,7 @@ build-backend = "maturin"
 python-source = "src"
 manifest-path = "native/Cargo.toml"
 module-name = "riichienv._riichienv"
+features = ["extension-module"]
 
 [dependency-groups]
 dev = [
