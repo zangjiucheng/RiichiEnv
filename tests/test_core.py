@@ -185,6 +185,38 @@ def test_only_aka_dora_fails():
     # assert res.han == 3 # Omitted as implementation might return 0 if !agari
 
 
+def test_reach_action_to_mjai_includes_actor():
+    import json
+
+    from riichienv import Action, ActionType
+
+    # actor ありの reach → to_mjai() に "actor" が含まれる
+    action = Action(type=ActionType.Riichi, actor=2)
+    result = json.loads(action.to_mjai())
+    assert result["type"] == "reach"
+    assert result["actor"] == 2, f"Expected actor=2, got {result.get('actor')}"
+
+    # actor なしの reach → "actor" キーが存在しない
+    action_no_actor = Action(type=ActionType.Riichi)
+    result2 = json.loads(action_no_actor.to_mjai())
+    assert result2["type"] == "reach"
+    assert "actor" not in result2, f"actor key should not exist, got {result2}"
+
+    # to_dict にも actor が反映されている
+    d = action.to_dict()
+    assert d["actor"] == 2
+    d2 = action_no_actor.to_dict()
+    assert d2["actor"] is None
+
+    # getter / setter
+    action.actor = 0
+    result3 = json.loads(action.to_mjai())
+    assert result3["actor"] == 0
+    action.actor = None
+    result4 = json.loads(action.to_mjai())
+    assert "actor" not in result4
+
+
 def test_kyoku4_regression():
     # 4p, 6p, 4m, 4p, 7m, 3m, 0m(5m), 1m, 7m, 5p, 7m, 0p(5p), 3p, 1m
     # Manzu: 1m(2), 3m(1), 4m(1), 5m(1), 7m(3)
