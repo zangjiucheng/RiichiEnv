@@ -674,7 +674,8 @@ impl GameState3P {
                                 } else {
                                     16000 + (np - 2) * 8000 // ko tsumo: oya pays 16000 + (np-2) ko pay 8000
                                 };
-                                let pao_amt = pao_yakuman_val * unit;
+                                let honba_total = self.honba as i32 * (np - 1) * 100;
+                                let pao_amt = pao_yakuman_val * unit + honba_total;
                                 let non_pao_yakuman_val = total_yakuman_val - pao_yakuman_val;
                                 let non_pao_amt = non_pao_yakuman_val * unit;
 

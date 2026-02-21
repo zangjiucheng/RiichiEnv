@@ -147,6 +147,12 @@ impl GameState3P {
         let p_idx = pid as usize;
 
         if self.wall.tiles.len() > 14 {
+            // Reveal any pending kan dora (e.g. from a prior kakan/daiminkan)
+            while self.wall.pending_kan_dora_count > 0 {
+                self.wall.pending_kan_dora_count -= 1;
+                self._reveal_kan_dora();
+            }
+
             // Draw from rinshan (front of wall vector)
             let t = self.wall.tiles.remove(0);
             self.players[p_idx].hand.push(t);
