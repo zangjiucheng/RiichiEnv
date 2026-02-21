@@ -284,6 +284,14 @@ impl MjSoulReplay {
                     None,
                     Some(initial_scores.to_vec()),
                 );
+                // Replace the randomly-dealt hands with the actual replay
+                // hands so that tenpai detection in NoTile is correct.
+                for (i, hand) in last.hands.iter().enumerate() {
+                    if i < state.players.len() {
+                        state.players[i].hand = hand.clone();
+                        state.players[i].hand.sort();
+                    }
+                }
                 for action in last.actions.iter() {
                     state.apply_log_action(action);
                 }
@@ -310,6 +318,14 @@ impl MjSoulReplay {
                     None,
                     Some(initial_scores.to_vec()),
                 );
+                // Replace the randomly-dealt hands with the actual replay
+                // hands so that tenpai detection in NoTile is correct.
+                for (i, hand) in last.hands.iter().enumerate() {
+                    if i < state.players.len() {
+                        state.players[i].hand = hand.clone();
+                        state.players[i].hand.sort();
+                    }
+                }
                 for action in last.actions.iter() {
                     state.apply_log_action(action);
                 }

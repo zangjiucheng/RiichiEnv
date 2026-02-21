@@ -261,8 +261,10 @@ impl GameStateEventHandler for GameState {
                 if *is_liqi || *is_wliqi {
                     if !self.players[s].riichi_declared {
                         self.players[s].riichi_declared = true;
-                        self.players[s].score -= 1000;
-                        self.riichi_sticks += 1;
+                        // Defer the 1000 deposit; it gets voided if this
+                        // discard is ronned, otherwise finalized on the next
+                        // DealTile / ChiPengGang.
+                        self.riichi_pending_acceptance = Some(s as u8);
                     }
                     self.players[s].riichi_declaration_index =
                         Some(self.players[s].discards.len() - 1);
@@ -275,6 +277,11 @@ impl GameStateEventHandler for GameState {
                 self.is_after_kan = false;
             }
             LogAction::DealTile { seat, tile, .. } => {
+                // Finalize pending riichi deposit (discard was not ronned)
+                if let Some(rp) = self.riichi_pending_acceptance.take() {
+                    self.players[rp as usize].score -= 1000;
+                    self.riichi_sticks += 1;
+                }
                 self.players[*seat].hand.push(*tile);
                 self.drawn_tile = Some(*tile);
                 self.current_player = *seat as u8;
@@ -294,6 +301,11 @@ impl GameStateEventHandler for GameState {
                 tiles,
                 froms,
             } => {
+                // Finalize pending riichi deposit (discard was claimed, not ronned)
+                if let Some(rp) = self.riichi_pending_acceptance.take() {
+                    self.players[rp as usize].score -= 1000;
+                    self.riichi_sticks += 1;
+                }
                 // Remove tiles from hand
                 for (i, t) in tiles.iter().enumerate() {
                     if i < froms.len() && froms[i] == *seat {
@@ -388,6 +400,13 @@ impl GameStateEventHandler for GameState {
                 self.wall.dora_indicators.push(*dora_marker);
             }
             LogAction::Hule { hules } => {
+                // If a riichi deposit is pending and this is a ron, the deposit
+                // is voided (MjSoul does not deduct it when the discard is ronned).
+                let first_is_ron = hules.first().map_or(false, |h| !h.zimo);
+                if first_is_ron {
+                    self.riichi_pending_acceptance = None;
+                }
+
                 let honba = self.honba;
                 let riichi_on_table = self.riichi_sticks;
 
@@ -428,6 +447,11 @@ impl GameStateEventHandler for GameState {
                 self.is_done = true;
             }
             LogAction::NoTile => {
+                // Finalize pending riichi deposit (exhaustive draw, not ronned)
+                if let Some(rp) = self.riichi_pending_acceptance.take() {
+                    self.players[rp as usize].score -= 1000;
+                    self.riichi_sticks += 1;
+                }
                 // Compute tenpai/noten payments
                 let mut tenpai = vec![false; 4];
                 for (i, p) in self.players.iter().enumerate() {
@@ -451,6 +475,11 @@ impl GameStateEventHandler for GameState {
                 self.is_done = true;
             }
             LogAction::LiuJu { .. } => {
+                // Finalize pending riichi deposit
+                if let Some(rp) = self.riichi_pending_acceptance.take() {
+                    self.players[rp as usize].score -= 1000;
+                    self.riichi_sticks += 1;
+                }
                 // Abortive draw - no score changes
                 self.is_done = true;
             }

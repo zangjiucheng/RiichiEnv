@@ -821,6 +821,16 @@ impl GameState3P {
             }
 
             if !ron_claims.is_empty() {
+                // If a riichi deposit is pending (the discarder declared riichi on this
+                // very discard), accept it so the deposit ends up on the table for the
+                // winner to collect.
+                if let Some(rp) = self.riichi_pending_acceptance.take() {
+                    self.players[rp as usize].score -= 1000;
+                    self.players[rp as usize].score_delta -= 1000;
+                    self.riichi_sticks += 1;
+                    self.players[rp as usize].riichi_declared = true;
+                }
+
                 let (target_pid, win_tile) = self.last_discard.unwrap_or((self.current_player, 0));
                 ron_claims.sort_by_key(|&pid| (pid + NP as u8 - target_pid) % NP as u8);
 
