@@ -553,9 +553,32 @@ impl GameStateEventHandler for GameState {
                         } else {
                             0
                         };
-                        let pay = h.point_rong as i32 + ron_honba as i32 * 300;
-                        self.players[discarder as usize].score -= pay;
-                        self.players[winner].score += pay;
+
+                        // Check PAO for ron yakuman: target pays half,
+                        // PAO player pays the other half.
+                        let mut pao_payer_ron: Option<u8> = None;
+                        if h.yiman {
+                            for &yid in &h.fans {
+                                if let Some(&liable) =
+                                    self.players[winner].pao.get(&(yid as u8))
+                                {
+                                    pao_payer_ron = Some(liable);
+                                    break;
+                                }
+                            }
+                        }
+
+                        if let Some(pp) = pao_payer_ron {
+                            let half = h.point_rong as i32 / 2;
+                            let honba_pts = ron_honba as i32 * 300;
+                            self.players[discarder as usize].score -= half + honba_pts;
+                            self.players[pp as usize].score -= half;
+                            self.players[winner].score += h.point_rong as i32 + honba_pts;
+                        } else {
+                            let pay = h.point_rong as i32 + ron_honba as i32 * 300;
+                            self.players[discarder as usize].score -= pay;
+                            self.players[winner].score += pay;
+                        }
                     }
                 }
 
