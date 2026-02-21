@@ -1483,7 +1483,7 @@ impl GameState {
         }
 
         match self.game_mode {
-            1 | 4 => {
+            1 | 4 => { // TODO: Delete 4, 5, 3
                 let max_score = self.players.iter().map(|p| p.score).max().unwrap_or(0);
                 if next_round_wind >= 1 && (max_score >= 30000 || next_round_wind > 1) {
                     self._process_end_game();
@@ -1516,7 +1516,6 @@ impl GameState {
         }
 
         let next_scores: Vec<i32> = self.players.iter().map(|p| p.score).collect();
-
         let next_sticks = self.riichi_sticks;
         self._initialize_round(
             next_oya,

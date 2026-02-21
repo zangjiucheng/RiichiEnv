@@ -400,7 +400,7 @@ impl GameState3P {
                     }
                     ActionType::Riichi => {
                         if self.players[pid as usize].score >= 1000
-                            && self.wall.tiles.len() >= 18
+                            && self.wall.tiles.len() > 14
                             && !self.players[pid as usize].riichi_declared
                         {
                             self.players[pid as usize].riichi_stage = true;
@@ -902,7 +902,7 @@ impl GameState3P {
                             }
                             if pao_yakuman_val > 0 {
                                 let unit = if w_pid == self.oya { 48000 } else { 32000 };
-                                let honba_pts = (self.honba as i32) * 300;
+                                let honba_pts = (self.honba as i32) * 300; // NOTE: 200?
                                 pao_amt = pao_yakuman_val * unit / 2 + honba_pts as u32;
                             }
                         }

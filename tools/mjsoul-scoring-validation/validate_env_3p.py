@@ -550,7 +550,7 @@ def main():
         print(f"No files found matching {TARGET_FILE_PATTERN}")
         sys.exit(1)
 
-    target_files = list(target_files)[:300]
+    target_files = list(target_files)[:1000]
 
     total_kyoku = 0
     total_success = 0

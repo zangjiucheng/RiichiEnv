@@ -92,7 +92,7 @@ impl GameState3PLegalActions for GameState3P {
                 // Riichi check
                 if !self.players[pid_us].riichi_declared
                     && self.players[pid_us].score >= 1000
-                    && self.wall.tiles.len() >= 18
+                    && self.wall.tiles.len() > 14
                     && self.players[pid_us].melds.iter().all(|m| !m.opened)
                     && !self.players[pid_us].riichi_stage
                 {

@@ -80,19 +80,19 @@ impl WallState3P {
     pub fn load_wall(&mut self, tiles: Vec<u8>) {
         let mut t = tiles;
 
-        // MjSoul 3P dead wall wraps around a table corner.
-        // Paishan positions 94-103 encode dora indicator stacks as:
-        //   [94,95]=stack3  [96,97]=stack2  [98,99]=stack1  [100,101]=stack4  [102,103]=stack5
-        // In each stack [X,X+1]: X+1 = omote (indicator), X = ura.
-        //
-        // We do NOT rearrange the wall tiles, because positions 103, 102, ...
-        // are used as rinshan continuation tiles (5th+ draws after kita/kan).
-        // Instead, we pre-extract dora/ura indicators into separate arrays.
+        // MjSoul 3P dead wall layout (positions 94-107):
+        //   Positions 94-99: dora stacks 1-3 (each pair [X,X+1] = ura,omote)
+        //     Stack1=[98,99]  Stack2=[96,97]  Stack3=[94,95]
+        //   Positions 100-107: rinshan draw area (8 tiles for up to 8 draws: kans+kitas)
+        // Dora stacks 4-5 extend into the live wall area (positions 90-93):
+        //     Stack4=[92,93]  Stack5=[90,91]
+        // These are pre-extracted before any draws, so it's safe even if
+        // those live wall positions are later drawn during normal play.
         if t.len() == 108 {
             // D1..D5 omote indicators
-            self.dora_indicator_tiles = [t[99], t[97], t[95], t[101], t[103]];
+            self.dora_indicator_tiles = [t[99], t[97], t[95], t[93], t[91]];
             // U1..U5 ura indicators
-            self.ura_indicator_tiles = [t[98], t[96], t[94], t[100], t[102]];
+            self.ura_indicator_tiles = [t[98], t[96], t[94], t[92], t[90]];
         }
 
         t.reverse();
