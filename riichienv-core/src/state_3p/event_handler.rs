@@ -615,8 +615,8 @@ impl GameState3PEventHandler for GameState3P {
                             }
                         }
 
-                        if pao_yakuman_val > 0 && pao_payer.is_some() {
-                            let pp = pao_payer.unwrap();
+                        if pao_yakuman_val > 0 {
+                            let pp = pao_payer.unwrap_or(discarder);
                             let ron_total = h.point_rong as i32;
                             let pao_amt = ron_total * pao_yakuman_val / total_yakuman_val;
                             let honba_pts =
