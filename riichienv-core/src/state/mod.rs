@@ -657,10 +657,15 @@ impl GameState {
                         let calc =
                             crate::hand_evaluator::HandEvaluator::new(hand.clone(), melds.clone());
                         let win_tile = self.drawn_tile.unwrap_or(0);
+                        let ura_indicators = if self.players[pid as usize].riichi_declared {
+                            self._get_ura_indicators()
+                        } else {
+                            vec![]
+                        };
                         let res = calc.calc(
                             win_tile,
                             self.wall.dora_indicators.clone(),
-                            vec![],
+                            ura_indicators,
                             Some(cond),
                         );
 
@@ -866,12 +871,21 @@ impl GameState {
                 let mut total_deltas = vec![0i32; np];
                 let mut oya_won = false;
                 let mut deposit_taken = false;
+                let mut honba_taken = false;
 
                 for &w_pid in &winners {
                     let hand = &self.players[w_pid as usize].hand;
                     let melds = &self.players[w_pid as usize].melds;
                     let p_wind = (w_pid + np as u8 - self.oya) % np as u8;
                     let is_chankan = self.pending_kan.is_some();
+
+                    // Only the first winner (closest to discarder) gets honba
+                    let ron_honba = if !honba_taken {
+                        honba_taken = true;
+                        self.honba as u32
+                    } else {
+                        0
+                    };
 
                     let cond = Conditions {
                         tsumo: false,
@@ -886,16 +900,21 @@ impl GameState {
                         player_wind: Wind::from(p_wind),
                         round_wind: Wind::from(self.round_wind),
                         riichi_sticks: self.riichi_sticks,
-                        honba: self.honba as u32,
+                        honba: ron_honba,
                         ..Default::default()
                     };
 
                     let calc =
                         crate::hand_evaluator::HandEvaluator::new(hand.clone(), melds.clone());
+                    let ura_indicators = if self.players[w_pid as usize].riichi_declared {
+                        self._get_ura_indicators()
+                    } else {
+                        vec![]
+                    };
                     let res = calc.calc(
                         win_tile,
                         self.wall.dora_indicators.clone(),
-                        vec![],
+                        ura_indicators,
                         Some(cond),
                     );
 
@@ -994,6 +1013,11 @@ impl GameState {
                 self.is_rinshan_flag = false;
                 self.is_first_turn = false;
                 self.players[claimer as usize].missed_agari_doujun = false;
+
+                // Discard was called → discarder loses nagashi eligibility
+                if let Some((discarder_pid, _)) = self.last_discard {
+                    self.players[discarder_pid as usize].nagashi_eligible = false;
+                }
 
                 for p in 0..np {
                     self.players[p].ippatsu_cycle = false;
@@ -1155,6 +1179,11 @@ impl GameState {
     }
 
     fn _resolve_discard(&mut self, pid: u8, tile: u8, tsumogiri: bool) {
+        // Clear ippatsu for the discarding player. When a riichi player discards
+        // without tsumo winning, their ippatsu window is over. Note: the riichi
+        // declaration discard won't wrongly clear it because _accept_riichi() runs
+        // AFTER this and sets ippatsu_cycle = true.
+        self.players[pid as usize].ippatsu_cycle = false;
         self.players[pid as usize].discards.push(tile);
         self.last_discard = Some((pid, tile));
         self.drawn_tile = None;
@@ -1229,9 +1258,10 @@ impl GameState {
                 self._accept_riichi();
             }
             if !self.check_abortive_draw() {
+                self.turn_count += 1;
                 self.current_player = (pid + 1) % np as u8;
                 self._deal_next();
-                if self.turn_count >= 4 {
+                if self.turn_count >= np as u32 {
                     self.is_first_turn = false;
                 }
             }
@@ -1634,6 +1664,37 @@ impl GameState {
 
             if !nagashi_winners.is_empty() {
                 final_reason = "nagashimangan".to_string();
+                // Apply mangan tsumo payment for each nagashi winner (no honba)
+                for &w in &nagashi_winners {
+                    let is_oya = w == self.oya;
+                    let score_res =
+                        crate::score::calculate_score(5, 30, is_oya, true, 0, np as u8);
+                    if is_oya {
+                        for i in 0..np {
+                            if i as u8 != w {
+                                self.players[i].score -= score_res.pay_tsumo_ko as i32;
+                                self.players[i].score_delta -= score_res.pay_tsumo_ko as i32;
+                                self.players[w as usize].score += score_res.pay_tsumo_ko as i32;
+                                self.players[w as usize].score_delta +=
+                                    score_res.pay_tsumo_ko as i32;
+                            }
+                        }
+                    } else {
+                        for i in 0..np {
+                            if i as u8 != w {
+                                let pay = if i as u8 == self.oya {
+                                    score_res.pay_tsumo_oya as i32
+                                } else {
+                                    score_res.pay_tsumo_ko as i32
+                                };
+                                self.players[i].score -= pay;
+                                self.players[i].score_delta -= pay;
+                                self.players[w as usize].score += pay;
+                                self.players[w as usize].score_delta += pay;
+                            }
+                        }
+                    }
+                }
             } else {
                 let tenpai_pool = 3000;
                 let num_tp = tenpai.iter().filter(|&&t| t).count();
@@ -1773,6 +1834,17 @@ impl GameState {
                 }
             }
         }
+    }
+
+    fn _get_ura_indicators(&self) -> Vec<u8> {
+        let mut indicators = Vec::new();
+        for i in 0..self.wall.dora_indicators.len() {
+            let idx = (5 + 2 * i).saturating_sub(self.wall.rinshan_draw_count as usize);
+            if idx < self.wall.tiles.len() {
+                indicators.push(self.wall.tiles[idx]);
+            }
+        }
+        indicators
     }
 
     pub fn _get_ura_markers(&self) -> Vec<String> {

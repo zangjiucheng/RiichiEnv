@@ -833,12 +833,21 @@ impl GameState3P {
                 let mut total_deltas = vec![0i32; NP];
                 let mut oya_won = false;
                 let mut deposit_taken = false;
+                let mut honba_taken = false;
 
                 for &w_pid in &winners {
                     let hand = &self.players[w_pid as usize].hand;
                     let melds = &self.players[w_pid as usize].melds;
                     let p_wind = (w_pid + NP as u8 - self.oya) % NP as u8;
                     let is_chankan = self.pending_kan.is_some();
+
+                    // Only the first winner (closest to discarder) gets honba
+                    let ron_honba = if !honba_taken {
+                        honba_taken = true;
+                        self.honba as u32
+                    } else {
+                        0
+                    };
 
                     let cond = Conditions {
                         tsumo: false,
@@ -853,7 +862,7 @@ impl GameState3P {
                         player_wind: Wind::from(p_wind),
                         round_wind: Wind::from(self.round_wind),
                         riichi_sticks: self.riichi_sticks,
-                        honba: self.honba as u32,
+                        honba: ron_honba,
                         kita_count: self.players[w_pid as usize].kita_tiles.len() as u8,
                         is_sanma: true,
                         num_players: NP as u8,
@@ -962,6 +971,11 @@ impl GameState3P {
                 self.is_rinshan_flag = false;
                 self.is_first_turn = false;
                 self.players[claimer as usize].missed_agari_doujun = false;
+
+                // Discard was called → discarder loses nagashi eligibility
+                if let Some((discarder_pid, _)) = self.last_discard {
+                    self.players[discarder_pid as usize].nagashi_eligible = false;
+                }
 
                 for p in 0..NP {
                     self.players[p].ippatsu_cycle = false;
@@ -1562,6 +1576,35 @@ impl GameState3P {
 
             if !nagashi_winners.is_empty() {
                 final_reason = "nagashimangan".to_string();
+                // Apply mangan tsumo payment for each nagashi winner (no honba)
+                for &w in &nagashi_winners {
+                    let is_oya = w == self.oya;
+                    let score_res = crate::score::calculate_score(5, 30, is_oya, true, 0, NP as u8);
+                    if is_oya {
+                        for i in 0..NP {
+                            if i as u8 != w {
+                                self.players[i].score -= score_res.pay_tsumo_ko as i32;
+                                self.players[i].score_delta -= score_res.pay_tsumo_ko as i32;
+                                self.players[w as usize].score += score_res.pay_tsumo_ko as i32;
+                                self.players[w as usize].score_delta += score_res.pay_tsumo_ko as i32;
+                            }
+                        }
+                    } else {
+                        for i in 0..NP {
+                            if i as u8 != w {
+                                let pay = if i as u8 == self.oya {
+                                    score_res.pay_tsumo_oya as i32
+                                } else {
+                                    score_res.pay_tsumo_ko as i32
+                                };
+                                self.players[i].score -= pay;
+                                self.players[i].score_delta -= pay;
+                                self.players[w as usize].score += pay;
+                                self.players[w as usize].score_delta += pay;
+                            }
+                        }
+                    }
+                }
             } else {
                 let tenpai_pool = game_mode::tenpai_pool();
                 let num_tp = tenpai.iter().filter(|&&t| t).count();

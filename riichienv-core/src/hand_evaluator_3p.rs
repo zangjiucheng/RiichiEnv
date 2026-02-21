@@ -103,16 +103,24 @@ impl HandEvaluator3P {
         }
 
         // Sanma dora mapping: 1m↔9m directly
+        // Kita tiles (North/4z = tile_34=30) are set aside and not in hand,
+        // but they still count as dora/ura-dora when the dora tile is North.
         let mut dora_count = 0;
         for &indicator_136 in &dora_indicators {
             let next_tile_34 = get_next_tile_sanma(indicator_136 / 4);
             dora_count += full_hand_14.counts[next_tile_34 as usize];
+            if next_tile_34 == 30 {
+                dora_count += conditions.kita_count;
+            }
         }
 
         let mut ura_dora_count = 0;
         for &indicator_136 in &ura_indicators {
             let next_tile_34 = get_next_tile_sanma(indicator_136 / 4);
             ura_dora_count += full_hand_14.counts[next_tile_34 as usize];
+            if next_tile_34 == 30 {
+                ura_dora_count += conditions.kita_count;
+            }
         }
 
         // Nukidora (kita) count
