@@ -14,6 +14,7 @@ from ._riichienv import (  # type: ignore
     RiichiEnv,
     Score,
     Wind,
+    WinResult,
     WinResultContext,
     Yaku,
     calculate_score,
@@ -27,7 +28,7 @@ from ._riichienv import (  # type: ignore
 )
 from .action import Action, ActionType
 from .game_mode import GameType
-from .hand import Conditions, HandEvaluator, WinResult
+from .hand import Conditions, HandEvaluator
 
 EAST = Wind.East
 SOUTH = Wind.South

@@ -1,29 +1,13 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from . import _riichienv as rust_core  # type: ignore
 from ._riichienv import (  # type: ignore
     Meld,
     Wind,
+    WinResult,
 )
 
 WINDS = [Wind.East, Wind.South, Wind.West, Wind.North]
-
-
-@dataclass
-class WinResult:
-    is_win: bool
-    yakuman: bool = False
-    ron_agari: int = 0
-    tsumo_agari_oya: int = 0
-    tsumo_agari_ko: int = 0
-    yaku: list[int] = field(default_factory=list)
-    han: int = 0
-    fu: int = 0
-
-    def yaku_list(self) -> list:
-        from ._riichienv import get_yaku_by_id
-
-        return [y for id in self.yaku if (y := get_yaku_by_id(id)) is not None]
 
 
 @dataclass
@@ -307,21 +291,7 @@ class HandEvaluator:
             temp_tiles = sorted(self.tiles_136 + [win_tile])
             calc_obj = rust_core.HandEvaluator(temp_tiles, rust_melds)
 
-        res = calc_obj.calc(win_tile, dora_inds_136, ura_inds_136, rust_conditions)
-
-        if not res.is_win:
-            return WinResult(is_win=False)
-
-        return WinResult(
-            is_win=True,
-            yakuman=res.yakuman,
-            ron_agari=res.ron_agari,
-            tsumo_agari_oya=res.tsumo_agari_oya,
-            tsumo_agari_ko=res.tsumo_agari_ko,
-            yaku=res.yaku,
-            han=res.han,
-            fu=res.fu,
-        )
+        return calc_obj.calc(win_tile, dora_inds_136, ura_inds_136, rust_conditions)
 
     def is_tenpai(self) -> bool:
         return self.calc_rust.is_tenpai()
