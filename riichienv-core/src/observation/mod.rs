@@ -19,12 +19,12 @@ use crate::types::Meld;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
     pub player_id: u8,
-    pub hands: Vec<Vec<u32>>,
-    pub melds: Vec<Vec<Meld>>,
-    pub discards: Vec<Vec<u32>>,
+    pub hands: [Vec<u32>; 4],
+    pub melds: [Vec<Meld>; 4],
+    pub discards: [Vec<u32>; 4],
     pub dora_indicators: Vec<u32>,
-    pub scores: Vec<i32>,
-    pub riichi_declared: Vec<bool>,
+    pub scores: [i32; 4],
+    pub riichi_declared: [bool; 4],
 
     pub(crate) _legal_actions: Vec<Action>,
 
@@ -37,9 +37,9 @@ pub struct Observation {
     pub kyoku_index: u8,
     pub waits: Vec<u8>,
     pub is_tenpai: bool,
-    pub tsumogiri_flags: Vec<Vec<bool>>,
-    pub riichi_sutehais: Vec<Option<u8>>,
-    pub last_tedashis: Vec<Option<u8>>,
+    pub tsumogiri_flags: [Vec<bool>; 4],
+    pub riichi_sutehais: [Option<u8>; 4],
+    pub last_tedashis: [Option<u8>; 4],
     pub last_discard: Option<u32>,
 }
 
@@ -48,12 +48,12 @@ impl Observation {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         player_id: u8,
-        hands: Vec<Vec<u8>>,
-        melds: Vec<Vec<Meld>>,
-        discards: Vec<Vec<u8>>,
+        hands: [Vec<u8>; 4],
+        melds: [Vec<Meld>; 4],
+        discards: [Vec<u8>; 4],
         dora_indicators: Vec<u8>,
-        scores: Vec<i32>,
-        riichi_declared: Vec<bool>,
+        scores: [i32; 4],
+        riichi_declared: [bool; 4],
         legal_actions: Vec<Action>,
         events: Vec<String>,
         honba: u8,
@@ -63,18 +63,12 @@ impl Observation {
         kyoku_index: u8,
         waits: Vec<u8>,
         is_tenpai: bool,
-        riichi_sutehais: Vec<Option<u8>>,
-        last_tedashis: Vec<Option<u8>>,
+        riichi_sutehais: [Option<u8>; 4],
+        last_tedashis: [Option<u8>; 4],
         last_discard: Option<u32>,
     ) -> Self {
-        let hands_u32 = hands
-            .iter()
-            .map(|h| h.iter().map(|&x| x as u32).collect())
-            .collect();
-        let discards_u32 = discards
-            .iter()
-            .map(|d| d.iter().map(|&x| x as u32).collect())
-            .collect();
+        let hands_u32 = hands.map(|h| h.into_iter().map(|x| x as u32).collect());
+        let discards_u32 = discards.map(|d| d.into_iter().map(|x| x as u32).collect());
         let dora_u32 = dora_indicators.iter().map(|&x| x as u32).collect();
 
         Self {
@@ -94,7 +88,7 @@ impl Observation {
             kyoku_index,
             waits,
             is_tenpai,
-            tsumogiri_flags: vec![vec![]; 4],
+            tsumogiri_flags: Default::default(),
             riichi_sutehais,
             last_tedashis,
             last_discard,

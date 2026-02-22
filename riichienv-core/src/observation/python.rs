@@ -36,6 +36,18 @@ impl Observation {
         last_tedashis: Vec<Option<u8>>,
         last_discard: Option<u32>,
     ) -> Self {
+        let hands: [Vec<u8>; 4] = hands.try_into().expect("expected 4 hands");
+        let melds: [Vec<Meld>; 4] = melds.try_into().expect("expected 4 melds");
+        let discards: [Vec<u8>; 4] = discards.try_into().expect("expected 4 discards");
+        let scores: [i32; 4] = scores.try_into().expect("expected 4 scores");
+        let riichi_declared: [bool; 4] = riichi_declared
+            .try_into()
+            .expect("expected 4 riichi_declared");
+        let riichi_sutehais: [Option<u8>; 4] = riichi_sutehais
+            .try_into()
+            .expect("expected 4 riichi_sutehais");
+        let last_tedashis: [Option<u8>; 4] =
+            last_tedashis.try_into().expect("expected 4 last_tedashis");
         Self::new(
             player_id,
             hands,
@@ -61,11 +73,7 @@ impl Observation {
 
     #[getter]
     pub fn hand(&self) -> Vec<u32> {
-        if (self.player_id as usize) < self.hands.len() {
-            self.hands[self.player_id as usize].clone()
-        } else {
-            vec![]
-        }
+        self.hands[self.player_id as usize].clone()
     }
 
     #[getter]

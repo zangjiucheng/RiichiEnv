@@ -71,8 +71,8 @@ pub struct GameState3P {
     pub last_error: Option<String>,
     pub is_after_kan: bool,
 
-    pub riichi_sutehais: Vec<Option<u8>>,
-    pub last_tedashis: Vec<Option<u8>>,
+    pub riichi_sutehais: [Option<u8>; NP],
+    pub last_tedashis: [Option<u8>; NP],
 }
 
 impl GameState3P {
@@ -131,8 +131,8 @@ impl GameState3P {
             rule,
             last_error: None,
             is_after_kan: false,
-            riichi_sutehais: vec![None; NP],
-            last_tedashis: vec![None; NP],
+            riichi_sutehais: [None; NP],
+            last_tedashis: [None; NP],
         };
 
         if !state.skip_mjai_logging {
@@ -160,14 +160,13 @@ impl GameState3P {
     pub fn get_observation(&mut self, player_id: u8) -> Observation3P {
         let pid = player_id as usize;
 
-        let mut masked_hands = Vec::new();
-        for (i, p) in self.players.iter().enumerate() {
+        let masked_hands: [Vec<u8>; 3] = std::array::from_fn(|i| {
             if i == pid {
-                masked_hands.push(p.hand.clone());
+                self.players[i].hand.clone()
             } else {
-                masked_hands.push(Vec::new());
+                Vec::new()
             }
-        }
+        });
 
         let legal_actions = if self.is_done {
             Vec::new()
@@ -195,10 +194,10 @@ impl GameState3P {
         let waits = calc.get_waits_u8();
         let is_tenpai = !waits.is_empty();
 
-        let melds: Vec<Vec<Meld>> = self.players.iter().map(|p| p.melds.clone()).collect();
-        let discards: Vec<Vec<u8>> = self.players.iter().map(|p| p.discards.clone()).collect();
-        let scores: Vec<i32> = self.players.iter().map(|p| p.score).collect();
-        let riichi_declared: Vec<bool> = self.players.iter().map(|p| p.riichi_declared).collect();
+        let melds: [Vec<Meld>; 3] = std::array::from_fn(|i| self.players[i].melds.clone());
+        let discards: [Vec<u8>; 3] = std::array::from_fn(|i| self.players[i].discards.clone());
+        let scores: [i32; 3] = std::array::from_fn(|i| self.players[i].score);
+        let riichi_declared: [bool; 3] = std::array::from_fn(|i| self.players[i].riichi_declared);
 
         Observation3P::new(
             player_id,
@@ -217,8 +216,8 @@ impl GameState3P {
             self.kyoku_idx,
             waits,
             is_tenpai,
-            self.riichi_sutehais.to_vec(),
-            self.last_tedashis.to_vec(),
+            self.riichi_sutehais,
+            self.last_tedashis,
             self.last_discard.map(|(tile, _pid)| tile as u32),
         )
     }
@@ -1510,8 +1509,8 @@ impl GameState3P {
         self.win_results.clear();
         self.last_win_results.clear();
         self.round_end_scores = None;
-        self.riichi_sutehais = vec![None; NP];
-        self.last_tedashis = vec![None; NP];
+        self.riichi_sutehais = [None; NP];
+        self.last_tedashis = [None; NP];
 
         if let Some(s) = scores {
             for (i, &sc) in s.iter().enumerate() {

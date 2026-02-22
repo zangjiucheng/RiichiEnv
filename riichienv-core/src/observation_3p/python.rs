@@ -39,6 +39,18 @@ impl Observation3P {
         last_tedashis: Vec<Option<u8>>,
         last_discard: Option<u32>,
     ) -> Self {
+        let hands: [Vec<u8>; 3] = hands.try_into().expect("expected 3 hands");
+        let melds: [Vec<Meld>; 3] = melds.try_into().expect("expected 3 melds");
+        let discards: [Vec<u8>; 3] = discards.try_into().expect("expected 3 discards");
+        let scores: [i32; 3] = scores.try_into().expect("expected 3 scores");
+        let riichi_declared: [bool; 3] = riichi_declared
+            .try_into()
+            .expect("expected 3 riichi_declared");
+        let riichi_sutehais: [Option<u8>; 3] = riichi_sutehais
+            .try_into()
+            .expect("expected 3 riichi_sutehais");
+        let last_tedashis: [Option<u8>; 3] =
+            last_tedashis.try_into().expect("expected 3 last_tedashis");
         Self::new(
             player_id,
             hands,
@@ -64,11 +76,7 @@ impl Observation3P {
 
     #[getter]
     pub fn hand(&self) -> Vec<u32> {
-        if (self.player_id as usize) < self.hands.len() {
-            self.hands[self.player_id as usize].clone()
-        } else {
-            vec![]
-        }
+        self.hands[self.player_id as usize].clone()
     }
 
     #[getter]
