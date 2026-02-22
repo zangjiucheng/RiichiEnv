@@ -44,6 +44,21 @@ export class Renderer3D implements IRenderer {
         // Handled by Viewer3D's ResizeObserver
     }
 
+    /**
+     * Set 3D tile content on a table-surface element.
+     * Creates a CSS 3D box with top face, front edge, and right edge.
+     * Returns the top-face element for appending overlays (e.g. highlights).
+     */
+    private setTile3D(el: HTMLElement, tileId: string, depth: number): HTMLElement {
+        el.style.transformStyle = 'preserve-3d';
+        const face = TileRenderer.getTileHtml(tileId);
+        el.innerHTML =
+            `<div class="tile-3d-top" style="transform:translateZ(${depth}px)">${face}</div>` +
+            `<div class="tile-3d-front" style="height:${depth}px"></div>` +
+            `<div class="tile-3d-right" style="width:${depth}px"></div>`;
+        return el.querySelector('.tile-3d-top') as HTMLElement;
+    }
+
     render(state: BoardState, debugPanel?: HTMLElement): void {
         const pc = state.playerCount;
 
@@ -283,7 +298,7 @@ export class Renderer3D implements IRenderer {
         doraTiles.forEach(t => {
             const d = document.createElement('div');
             d.className = 'dora-tile-3d';
-            d.innerHTML = TileRenderer.getTileHtml(t);
+            this.setTile3D(d, t, 2);
             row3.appendChild(d);
         });
         contentDiv.appendChild(row3);
@@ -343,16 +358,28 @@ export class Renderer3D implements IRenderer {
         playerIdx: number, activeWaits: Set<string>
     ): HTMLElement {
         const [tw, th] = this.layout.tileSizes.riverTile;
+        const gap = 1;
+        // Fixed river area size: 6 columns × 3 rows (+ extra width for one possible riichi rotated tile)
+        const riverW = 6 * tw + 5 * gap + 10; // +10 for a rotated riichi tile being wider
+        const riverH = 3 * th + 2 * gap;
+
         const wrapper = document.createElement('div');
         wrapper.className = 'river-3d';
+        // Fix the wrapper size so tile positions don't shift as discards are added
+        Object.assign(wrapper.style, {
+            width: `${riverW}px`,
+            height: `${riverH}px`,
+        });
 
         // Position on table (proportional to table size)
         const ts = this.layout.tableSize;
+        // All rivers scaled up for better visibility
+        const riverScale = 1.35;
         const positions: { [key: number]: { left: string; top: string; transform: string } } = {
-            0: { left: '50%', top: `${Math.round(ts * 0.75)}px`, transform: 'translate(-50%, -50%)' },
-            1: { left: `${Math.round(ts * 0.775)}px`, top: '50%', transform: 'translate(-50%, -50%) rotate(-90deg)' },
-            2: { left: '50%', top: `${Math.round(ts * 0.25)}px`, transform: 'translate(-50%, -50%) rotate(180deg)' },
-            3: { left: `${Math.round(ts * 0.225)}px`, top: '50%', transform: 'translate(-50%, -50%) rotate(90deg)' },
+            0: { left: '50%', top: `${Math.round(ts * 0.75)}px`, transform: `translate(-50%, -50%) scale(${riverScale})` },
+            1: { left: `${Math.round(ts * 0.775)}px`, top: '50%', transform: `translate(-50%, -50%) rotate(-90deg) scale(${riverScale})` },
+            2: { left: '50%', top: `${Math.round(ts * 0.25)}px`, transform: `translate(-50%, -50%) rotate(180deg) scale(${riverScale})` },
+            3: { left: `${Math.round(ts * 0.225)}px`, top: '50%', transform: `translate(-50%, -50%) rotate(90deg) scale(${riverScale})` },
         };
         const pos = positions[relIndex] || positions[0];
         Object.assign(wrapper.style, pos);
@@ -377,9 +404,9 @@ export class Renderer3D implements IRenderer {
                 cell.className = isRiichi ? 'table-tile-rotated' : 'table-tile';
                 if (d.isTsumogiri) cell.classList.add('table-tile-tsumogiri');
 
-                cell.innerHTML = TileRenderer.getTileHtml(d.tile);
+                const topFace = this.setTile3D(cell, d.tile, 5);
 
-                // Highlight
+                // Highlight (append to top face so it's at the correct Z level)
                 if (activeWaits.size > 0) {
                     const normT = normalize(d.tile);
                     if (activeWaits.has(normT)) {
@@ -390,7 +417,7 @@ export class Renderer3D implements IRenderer {
                             backgroundColor: 'rgba(255, 0, 0, 0.4)',
                             zIndex: '10', pointerEvents: 'none', borderRadius: '3px',
                         });
-                        cell.appendChild(overlay);
+                        topFace.appendChild(overlay);
                     }
                 }
 
@@ -407,14 +434,43 @@ export class Renderer3D implements IRenderer {
     // =========================================================================
     private renderOpponentHand(player: PlayerState, relIndex: number, pc: number): HTMLElement {
         const [tw, th] = this.layout.tileSizes.opponentTile;
+        const gap = 1;
+        const maxTiles = 14;
+        // Fixed wrapper size so position doesn't shift as tiles change
+        const handW = maxTiles * tw + (maxTiles - 1) * gap;
+        const handH = th;
+
         const wrapper = document.createElement('div');
         wrapper.className = 'opp-hand-3d';
+        Object.assign(wrapper.style, {
+            width: `${handW}px`,
+            height: `${handH}px`,
+        });
 
-        // Position at table edges
-        const positions: { [key: number]: { [k: string]: string } } = {
-            1: { right: '12px', top: '50%', transform: 'translateY(-50%) rotate(-90deg)' },
-            2: { top: '12px', left: '50%', transform: 'translate(-50%, 0) rotate(180deg)' },
-            3: { left: '12px', top: '50%', transform: 'translateY(-50%) rotate(90deg)' },
+        // Compute position: place hand between river outer edge and table edge
+        const ts = this.layout.tableSize;
+        const [rtw, rth] = this.layout.tileSizes.riverTile;
+        const riverH = 3 * rth + 2; // 3 rows + 2 gaps
+        const riverScale = 1.35;
+        const halfRiverExtent = riverH * riverScale / 2; // visual half-extent perpendicular to edge
+
+        // Hand center = midpoint between river outer edge and table edge
+        const positions: { [key: number]: { left: string; top: string; transform: string } } = {
+            1: {
+                left: `${Math.round((ts * 0.775 + halfRiverExtent + ts) / 2)}px`,
+                top: '50%',
+                transform: 'translate(-50%, -50%) rotate(-90deg)',
+            },
+            2: {
+                left: '50%',
+                top: `${Math.round((ts * 0.25 - halfRiverExtent) / 2)}px`,
+                transform: 'translate(-50%, -50%) rotate(180deg)',
+            },
+            3: {
+                left: `${Math.round((ts * 0.225 - halfRiverExtent) / 2)}px`,
+                top: '50%',
+                transform: 'translate(-50%, -50%) rotate(90deg)',
+            },
         };
         const pos = positions[relIndex];
         if (pos) Object.assign(wrapper.style, pos);
@@ -422,7 +478,7 @@ export class Renderer3D implements IRenderer {
         player.hand.forEach(t => {
             const tile = document.createElement('div');
             tile.className = 'opp-tile';
-            tile.innerHTML = TileRenderer.getTileHtml(t);
+            this.setTile3D(tile, t, 4);
             wrapper.appendChild(tile);
         });
 
@@ -439,13 +495,23 @@ export class Renderer3D implements IRenderer {
         const wrapper = document.createElement('div');
         wrapper.className = 'opp-meld-3d';
 
-        // Position near the corner, between hand and edge (proportional to table size)
+        // Position in the same zone as the hand (between river outer edge and table edge)
         const ts = this.layout.tableSize;
-        const meldOffset = `${Math.round(ts * 0.1)}px`;
+        const [rtw, rth] = this.layout.tileSizes.riverTile;
+        const riverH = 3 * rth + 2;
+        const riverScale = 1.35;
+        const halfRiverExtent = riverH * riverScale / 2;
+        const meldCornerOffset = `${Math.round(ts * 0.1)}px`;
+
+        // Edge offsets align with hand center zone
+        const edgeR = Math.round(ts - (ts * 0.775 + halfRiverExtent + ts) / 2);
+        const edgeT = Math.round((ts * 0.25 - halfRiverExtent) / 2);
+        const edgeL = Math.round((ts * 0.225 - halfRiverExtent) / 2);
+
         const positions: { [key: number]: { [k: string]: string } } = {
-            1: { right: '12px', bottom: meldOffset, transform: 'rotate(-90deg)' },
-            2: { right: meldOffset, top: '12px', transform: 'rotate(180deg)' },
-            3: { left: '12px', top: meldOffset, transform: 'rotate(90deg)' },
+            1: { right: `${edgeR}px`, bottom: meldCornerOffset, transform: 'rotate(-90deg)' },
+            2: { right: meldCornerOffset, top: `${edgeT}px`, transform: 'rotate(180deg)' },
+            3: { left: `${edgeL}px`, top: meldCornerOffset, transform: 'rotate(90deg)' },
         };
         const pos = positions[relIndex];
         if (pos) Object.assign(wrapper.style, pos);
@@ -464,7 +530,7 @@ export class Renderer3D implements IRenderer {
                     const tileId = (i === 0 || i === 3) ? 'back' : t;
                     const d = document.createElement('div');
                     d.className = 'meld-tile-table';
-                    d.innerHTML = TileRenderer.getTileHtml(tileId);
+                    this.setTile3D(d, tileId, 3);
                     mGroup.appendChild(d);
                 });
             } else {
@@ -475,13 +541,13 @@ export class Renderer3D implements IRenderer {
                 const addUpright = (t: string) => {
                     const d = document.createElement('div');
                     d.className = 'meld-tile-table';
-                    d.innerHTML = TileRenderer.getTileHtml(t);
+                    this.setTile3D(d, t, 3);
                     mGroup.appendChild(d);
                 };
                 const addRotated = (t: string) => {
                     const d = document.createElement('div');
                     d.className = 'meld-tile-table-rotated';
-                    d.innerHTML = TileRenderer.getTileHtml(t);
+                    this.setTile3D(d, t, 3);
                     mGroup.appendChild(d);
                 };
 
@@ -696,9 +762,9 @@ export class Renderer3D implements IRenderer {
         panel.className = 'score-panel-3d';
         if (playerIdx === this.viewpoint) panel.classList.add('active-vp');
 
-        // Position
+        // Position — self (relIndex=0) panel moved to bottom-left to avoid blocking river
         const positions: { [key: number]: { [k: string]: string } } = {
-            0: { bottom: '135px', left: '50%', transform: 'translateX(-50%)' },
+            0: { bottom: '135px', left: '80px' },
             1: { right: '50px', top: '45%', transform: 'translateY(-50%)' },
             2: { top: '15px', left: '50%', transform: 'translateX(-50%)' },
             3: { left: '50px', top: '45%', transform: 'translateY(-50%)' },
@@ -775,8 +841,7 @@ export class Renderer3D implements IRenderer {
         const el = document.createElement('div');
         el.className = 'wait-indicator-3d';
         Object.assign(el.style, {
-            bottom: '135px', left: '50%',
-            transform: 'translateX(-50%) translateY(-30px)',
+            bottom: '170px', left: '80px',
         });
 
         const label = document.createElement('span');

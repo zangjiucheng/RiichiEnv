@@ -102,6 +102,36 @@ export const VIEWER_3D_CSS = `
         opacity: 0.6;
     }
 
+    /* ---- 3D Tile Box (table surface tiles) ---- */
+    .tile-3d-top {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        border-radius: 3px;
+        overflow: hidden;
+        background: #f0ead6;
+    }
+    .tile-3d-front {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #d4ccb8;
+        transform-origin: bottom center;
+        transform: rotateX(-90deg);
+        border-radius: 0 0 2px 2px;
+    }
+    .tile-3d-right {
+        position: absolute;
+        top: 0;
+        left: 100%;
+        height: 100%;
+        background: #c8c0ac;
+        transform-origin: left center;
+        transform: rotateY(90deg);
+        border-radius: 0 2px 2px 0;
+    }
+
     /* Opponent hand on table edge */
     .opp-hand-3d {
         position: absolute;
@@ -110,9 +140,10 @@ export const VIEWER_3D_CSS = `
         transform-style: preserve-3d;
     }
     .opp-tile {
-        width: 22px;
-        height: 30px;
+        width: 30px;
+        height: 42px;
         flex-shrink: 0;
+        position: relative;
     }
 
     /* Opponent melds on table */
@@ -126,11 +157,13 @@ export const VIEWER_3D_CSS = `
         width: 20px;
         height: 28px;
         flex-shrink: 0;
+        position: relative;
     }
     .meld-tile-table-rotated {
         width: 28px;
         height: 28px;
         flex-shrink: 0;
+        position: relative;
     }
     .meld-tile-table-rotated .tile-layer {
         transform: rotate(90deg) scale(0.85);
@@ -162,6 +195,7 @@ export const VIEWER_3D_CSS = `
     .dora-tile-3d {
         width: 18px;
         height: 25px;
+        position: relative;
     }
 
     /* Riichi sticks on table */
@@ -206,6 +240,13 @@ export const VIEWER_3D_CSS = `
         width: 50px;
         height: 70px;
         position: relative;
+        border-radius: 5px;
+        overflow: hidden;
+        background: #f0ead6;
+        box-shadow:
+            0 3px 0 0 #c8c0a8,
+            1px 3px 0 0 #bfb7a3,
+            1px 4px 6px rgba(0,0,0,0.3);
     }
     .own-melds-3d {
         display: flex;
@@ -224,11 +265,26 @@ export const VIEWER_3D_CSS = `
         display: flex;
         align-items: flex-end;
         justify-content: center;
+        position: relative;
+        border-radius: 4px;
+        overflow: hidden;
+        background: #f0ead6;
+        box-shadow:
+            0 2px 0 0 #c8c0a8,
+            1px 2px 0 0 #bfb7a3,
+            1px 3px 5px rgba(0,0,0,0.25);
     }
     .meld-tile-own-rotated {
         width: 56px;
         height: 56px;
         position: relative;
+        border-radius: 4px;
+        overflow: hidden;
+        background: #f0ead6;
+        box-shadow:
+            0 2px 0 0 #c8c0a8,
+            1px 2px 0 0 #bfb7a3,
+            1px 3px 5px rgba(0,0,0,0.25);
     }
     .meld-tile-own-rotated .tile-layer {
         transform: rotate(90deg);

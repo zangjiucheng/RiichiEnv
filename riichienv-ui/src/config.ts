@@ -118,13 +118,13 @@ export function createLayout3DConfig4P(): LayoutConfig3D {
         viewAreaHeight: 720,
         contentWidth: 1280,
         contentHeight: 720,
-        tableSize: 750,
-        perspective: 1500,
-        tiltAngle: 35,
+        tableSize: 1050, /** **/
+        perspective: 1800, /** **/
+        tiltAngle: 48, /** **/
         handLayerHeight: 120,
         tileSizes: {
             riverTile: [26, 36],
-            opponentTile: [22, 30],
+            opponentTile: [30, 42],
             ownTile: [50, 70],
             doraTile: [18, 25],
             meldTileTable: [20, 28],
@@ -145,7 +145,7 @@ export function createLayout3DConfig3P(): LayoutConfig3D {
         handLayerHeight: 120,
         tileSizes: {
             riverTile: [26, 36],
-            opponentTile: [22, 30],
+            opponentTile: [30, 42],
             ownTile: [50, 70],
             doraTile: [18, 25],
             meldTileTable: [20, 28],
