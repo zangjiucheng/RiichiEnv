@@ -28,17 +28,22 @@ export const VIEWER_3D_CSS = `
         top: 40%;
         transform: translate(-50%, -50%) rotateX(35deg);
         transform-style: preserve-3d;
-        background: #1e2844;
-        border-radius: 6px;
-        box-shadow: 0 15px 0 0 #121830, 0 15px 40px rgba(0,0,0,0.7);
+        background: linear-gradient(135deg, #6b4226 0%, #5c3a21 30%, #4e2f1a 60%, #5a3720 100%);
+        border-radius: 8px;
+        box-shadow:
+            0 18px 0 0 #3d2514,
+            0 18px 50px rgba(0,0,0,0.7),
+            inset 0 0 20px rgba(0,0,0,0.3);
+        border: 2px solid #7a5234;
     }
 
     .table-inner {
         position: absolute;
-        top: 18px; left: 18px; right: 18px; bottom: 18px;
+        top: 38px; left: 38px; right: 38px; bottom: 38px;
         background: ${COLORS.boardBackground};
-        border: 2px solid #4a5690;
-        border-radius: 3px;
+        border: 3px solid #3d2514;
+        border-radius: 4px;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.3);
     }
 
     /* Layer 2: Hand Layer (flat, at bottom) */

@@ -375,11 +375,12 @@ export class Renderer3D implements IRenderer {
         const ts = this.layout.tableSize;
         // All rivers scaled up for better visibility
         const riverScale = 1.35;
+        // Left/right rivers shifted toward center by one tile height
         const positions: { [key: number]: { left: string; top: string; transform: string } } = {
-            0: { left: '50%', top: `${Math.round(ts * 0.75)}px`, transform: `translate(-50%, -50%) scale(${riverScale})` },
-            1: { left: `${Math.round(ts * 0.775)}px`, top: '50%', transform: `translate(-50%, -50%) rotate(-90deg) scale(${riverScale})` },
-            2: { left: '50%', top: `${Math.round(ts * 0.25)}px`, transform: `translate(-50%, -50%) rotate(180deg) scale(${riverScale})` },
-            3: { left: `${Math.round(ts * 0.225)}px`, top: '50%', transform: `translate(-50%, -50%) rotate(90deg) scale(${riverScale})` },
+            0: { left: '50%', top: `${Math.round(ts * 0.72)}px`, transform: `translate(-50%, -50%) scale(${riverScale})` },
+            1: { left: `${Math.round(ts * 0.745 - th)}px`, top: '50%', transform: `translate(-50%, -50%) rotate(-90deg) scale(${riverScale})` },
+            2: { left: '50%', top: `${Math.round(ts * 0.28)}px`, transform: `translate(-50%, -50%) rotate(180deg) scale(${riverScale})` },
+            3: { left: `${Math.round(ts * 0.255 + th)}px`, top: '50%', transform: `translate(-50%, -50%) rotate(90deg) scale(${riverScale})` },
         };
         const pos = positions[relIndex] || positions[0];
         Object.assign(wrapper.style, pos);
@@ -455,19 +456,20 @@ export class Renderer3D implements IRenderer {
         const halfRiverExtent = riverH * riverScale / 2; // visual half-extent perpendicular to edge
 
         // Hand center = midpoint between river outer edge and table edge
+        // Left/right rivers are shifted by rth toward center
         const positions: { [key: number]: { left: string; top: string; transform: string } } = {
             1: {
-                left: `${Math.round((ts * 0.775 + halfRiverExtent + ts) / 2)}px`,
+                left: `${Math.round((ts * 0.745 - rth + halfRiverExtent + ts) / 2)}px`,
                 top: '50%',
                 transform: 'translate(-50%, -50%) rotate(-90deg)',
             },
             2: {
                 left: '50%',
-                top: `${Math.round((ts * 0.25 - halfRiverExtent) / 2)}px`,
+                top: `${Math.round((ts * 0.28 - halfRiverExtent) / 2)}px`,
                 transform: 'translate(-50%, -50%) rotate(180deg)',
             },
             3: {
-                left: `${Math.round((ts * 0.225 - halfRiverExtent) / 2)}px`,
+                left: `${Math.round((ts * 0.255 + rth - halfRiverExtent) / 2)}px`,
                 top: '50%',
                 transform: 'translate(-50%, -50%) rotate(90deg)',
             },
@@ -504,9 +506,9 @@ export class Renderer3D implements IRenderer {
         const meldCornerOffset = `${Math.round(ts * 0.1)}px`;
 
         // Edge offsets align with hand center zone
-        const edgeR = Math.round(ts - (ts * 0.775 + halfRiverExtent + ts) / 2);
-        const edgeT = Math.round((ts * 0.25 - halfRiverExtent) / 2);
-        const edgeL = Math.round((ts * 0.225 - halfRiverExtent) / 2);
+        const edgeR = Math.round(ts - (ts * 0.745 - rth + halfRiverExtent + ts) / 2);
+        const edgeT = Math.round((ts * 0.28 - halfRiverExtent) / 2);
+        const edgeL = Math.round((ts * 0.255 + rth - halfRiverExtent) / 2);
 
         const positions: { [key: number]: { [k: string]: string } } = {
             1: { right: `${edgeR}px`, bottom: meldCornerOffset, transform: 'rotate(-90deg)' },

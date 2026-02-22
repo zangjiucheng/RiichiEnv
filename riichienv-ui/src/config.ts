@@ -118,7 +118,7 @@ export function createLayout3DConfig4P(): LayoutConfig3D {
         viewAreaHeight: 720,
         contentWidth: 1280,
         contentHeight: 720,
-        tableSize: 1050, /** **/
+        tableSize: 1100, /** **/
         perspective: 1800, /** **/
         tiltAngle: 48, /** **/
         handLayerHeight: 120,
