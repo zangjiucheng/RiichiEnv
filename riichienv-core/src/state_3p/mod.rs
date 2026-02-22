@@ -28,7 +28,7 @@ const NP: usize = 3;
 #[derive(Debug, Clone)]
 pub struct GameState3P {
     pub wall: WallState3P,
-    pub players: Vec<PlayerState3P>,
+    pub players: [PlayerState3P; NP],
 
     pub current_player: u8,
     pub turn_count: u32,
@@ -60,8 +60,8 @@ pub struct GameState3P {
     pub round_end_scores: Option<Vec<i32>>,
 
     pub mjai_log: Vec<String>,
-    pub player_event_counts: Vec<usize>,
-    pub mjai_log_per_player: Vec<Vec<String>>,
+    pub player_event_counts: [usize; NP],
+    pub mjai_log_per_player: [Vec<String>; NP],
 
     pub sub_mode: GameSubMode3P,
     pub game_mode: u8,
@@ -88,9 +88,7 @@ impl GameState3P {
         rule: GameRule,
     ) -> Self {
         let sub_mode = GameSubMode3P::from_game_mode(game_mode);
-        let players: Vec<PlayerState3P> = (0..NP)
-            .map(|_| PlayerState3P::new(game_mode::starting_score()))
-            .collect();
+        let players = [(); NP].map(|_| PlayerState3P::new(game_mode::starting_score()));
 
         let wall = WallState3P::new(seed);
 
@@ -122,8 +120,8 @@ impl GameState3P {
             last_win_results: HashMap::new(),
             round_end_scores: None,
             mjai_log: Vec::new(),
-            player_event_counts: vec![0; NP],
-            mjai_log_per_player: (0..NP).map(|_| Vec::new()).collect(),
+            player_event_counts: [0; NP],
+            mjai_log_per_player: Default::default(),
             sub_mode,
             game_mode,
             skip_mjai_logging,
@@ -147,8 +145,8 @@ impl GameState3P {
 
     pub fn reset(&mut self) {
         self.mjai_log = Vec::new();
-        self.mjai_log_per_player = (0..NP).map(|_| Vec::new()).collect();
-        self.player_event_counts = vec![0; NP];
+        self.mjai_log_per_player = Default::default();
+        self.player_event_counts = [0; NP];
 
         if !self.skip_mjai_logging {
             let mut ev = serde_json::Map::new();
@@ -1514,7 +1512,7 @@ impl GameState3P {
 
         if let Some(s) = scores {
             for (i, &sc) in s.iter().enumerate() {
-                if i < self.players.len() {
+                if i < NP {
                     self.players[i].score = sc;
                 }
             }

@@ -60,8 +60,8 @@ pub struct GameState {
     pub round_end_scores: Option<Vec<i32>>,
 
     pub mjai_log: Vec<String>,
-    pub player_event_counts: Vec<usize>,
-    pub mjai_log_per_player: Vec<Vec<String>>,
+    pub player_event_counts: [usize; NP],
+    pub mjai_log_per_player: [Vec<String>; NP],
 
     pub mode: GameModeConfig,
     pub game_mode: u8,
@@ -120,8 +120,8 @@ impl GameState {
             last_win_results: HashMap::new(),
             round_end_scores: None,
             mjai_log: Vec::new(),
-            player_event_counts: vec![0; NP],
-            mjai_log_per_player: (0..NP).map(|_| Vec::new()).collect(),
+            player_event_counts: [0; NP],
+            mjai_log_per_player: Default::default(),
             mode,
             game_mode,
             skip_mjai_logging,
@@ -146,8 +146,8 @@ impl GameState {
 
     pub fn reset(&mut self) {
         self.mjai_log = Vec::new();
-        self.mjai_log_per_player = (0..NP).map(|_| Vec::new()).collect();
-        self.player_event_counts = vec![0; NP];
+        self.mjai_log_per_player = Default::default();
+        self.player_event_counts = [0; NP];
 
         if !self.skip_mjai_logging {
             let mut ev = serde_json::Map::new();
@@ -871,7 +871,7 @@ impl GameState {
                     vec![ron_claims[0]]
                 };
 
-                let mut total_deltas = vec![0i32; np];
+                let mut total_deltas = [0i32; NP];
                 let mut oya_won = false;
                 let mut deposit_taken = false;
                 let mut honba_taken = false;
