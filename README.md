@@ -236,10 +236,10 @@ Calculate the shanten number (minimum number of tiles away from tenpai) using lo
 
 **3-player mahjong:**
 
-In 3-player mahjong (sanma), tiles 2m-8m do not exist. `calculate_shanten_3p` correctly handles this by disallowing sequences in the manzu suit.
+In 3-player mahjong (sanma), tiles 2m-8m do not exist. `calculate_shanten_3p` correctly handles this by treating manzu tiles (1m, 9m) as honor-like tiles with no sequence potential, using the nyanten lookup tables.
 
 ```python
->>> from riichienv import parse_hand, calculate_shanten_3p
+>>> from riichienv import parse_hand, calculate_shanten, calculate_shanten_3p
 >>> tiles, _ = parse_hand("111m123456789s11z")
 >>> calculate_shanten_3p(tiles)
 -1  # complete hand (111m koutsu + souzu shuntsu)
@@ -247,6 +247,11 @@ In 3-player mahjong (sanma), tiles 2m-8m do not exist. `calculate_shanten_3p` co
 >>> tiles, _ = parse_hand("19m19p19s1234567z")
 >>> calculate_shanten_3p(tiles)
 0   # kokushi tenpai
+
+>>> # Corner case: 3P shanten can differ from 4P
+>>> tiles, _ = parse_hand("1111m111122233z")
+>>> calculate_shanten(tiles), calculate_shanten_3p(tiles)
+(1, 2)  # 4P tenpai path requires drawing 2m/3m, which don't exist in 3P
 ```
 
 ## 🛠 Development

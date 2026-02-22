@@ -1,11 +1,12 @@
 import riichienv
 
 
-def test_shanten_3p_koutsu_only():
-    """1111m111122233z: both 4P and 3P shanten = 1.
+def test_shanten_3p_differs_from_4p():
+    """1111m111122233z: 4P=1, 3P=2.
 
-    Best decomposition: 111m(koutsu) + 111z(koutsu) + 222z(koutsu) + 33z(pair)
-    = 3 mentsu + 1 pair. No manzu sequences needed.
+    In 4P, the only path to tenpai is discard 1z + draw 2m or 3m
+    (forming taatsu with the leftover 1m). In 3P, 2m/3m don't exist,
+    so this path is unavailable, making shanten one higher.
     """
     tiles, _ = riichienv.parse_hand("1111m111122233z")
     assert riichienv.calculate_shanten(tiles) == 1
@@ -71,8 +72,30 @@ def test_shanten_3p_iishanten():
     assert riichienv.calculate_shanten_3p(tiles) == 1
 
 
+def test_shanten_3p_both_manzu_maxed():
+    """When both 1m and 9m are at 4 copies, 3P shanten can differ from 4P.
+
+    The 4P lookup gives adjacency credit for both leftover 1m and 9m tiles,
+    but in 3P neither can form sequences.
+    """
+    tiles, _ = riichienv.parse_hand("11119999m22345s")
+    assert riichienv.calculate_shanten(tiles) == 1
+    assert riichienv.calculate_shanten_3p(tiles) == 2
+
+
+def test_shanten_3p_overflow_honors():
+    """Overflow case: all 7 honor slots occupied + both 1m and 9m present.
+
+    In this case relocation to zipai slots is partially limited, but the
+    result is still correct because kokushi dominates for such scattered hands.
+    """
+    tiles, _ = riichienv.parse_hand("1111m9m1234567z")
+    assert riichienv.calculate_shanten(tiles) == 3
+    assert riichienv.calculate_shanten_3p(tiles) == 3
+
+
 def test_shanten_3p_consistency_with_4p():
-    """For valid 3P hands (no 2m-8m), 3P and 4P shanten should match."""
+    """For valid 3P hands without heavy 1m/9m, 3P and 4P shanten should match."""
     test_hands = [
         ("19m19p19s1234567z", 0),  # Kokushi tenpai
         ("1199m1199p1199s1z", 0),  # Chiitoitsu tenpai
