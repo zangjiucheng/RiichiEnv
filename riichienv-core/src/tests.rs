@@ -1038,6 +1038,9 @@ mod unit_tests {
         let obs = state.get_observation(0);
         // hands, scores, discards, melds are now [T; 3] fixed-size arrays,
         // so .len() checks are trivially true and have been removed.
-        assert!(!obs.hands[0].is_empty(), "Player 0 hand should not be empty");
+        assert!(
+            !obs.hands[0].is_empty(),
+            "Player 0 hand should not be empty"
+        );
     }
 }
