@@ -51,20 +51,6 @@ pub fn calculate_score(
     s
 }
 
-#[cfg(feature = "python")]
-#[pyfunction]
-#[pyo3(name = "calculate_score")]
-pub fn calculate_score_py(
-    han: u8,
-    fu: u8,
-    is_oya: bool,
-    is_tsumo: bool,
-    honba: u32,
-    num_players: Option<u8>,
-) -> Score {
-    calculate_score(han, fu, is_oya, is_tsumo, honba, num_players.unwrap_or(4))
-}
-
 fn make_score_result(base_points: u32, is_oya: bool, is_tsumo: bool, np: u32) -> Score {
     let total_ron = if is_oya {
         ceil_100(base_points * 6)
