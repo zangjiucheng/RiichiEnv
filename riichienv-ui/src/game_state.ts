@@ -80,8 +80,12 @@ export class GameState {
     // Cache state at each step to allow fast jumping
     current: BoardState;
 
-    // Checkpoint cache: cursor position -> deep-cloned BoardState at kyoku boundaries
+    // Checkpoint cache: cursor position -> deep-cloned BoardState
     private stateCache: Map<number, BoardState> = new Map();
+    private static readonly CHECKPOINT_INTERVAL = 20;
+
+    // Flag to skip expensive WASM calculations during bulk replay
+    private _isReplaying: boolean = false;
 
     constructor(events: MjaiEvent[], config?: GameConfig) {
         this.config = config ?? createGameConfig4P();
@@ -159,9 +163,11 @@ export class GameState {
         this.cursor++;
         this.current.eventIndex = this.cursor; // Sync
 
-        // Cache state right after processing start_kyoku for fast backward jumps
-        if (event.type === 'start_kyoku' && !this.stateCache.has(this.cursor)) {
-            this.stateCache.set(this.cursor, this.cloneState(this.current));
+        // Cache state at kyoku boundaries and every N steps for fast backward jumps
+        if (!this.stateCache.has(this.cursor)) {
+            if (event.type === 'start_kyoku' || this.cursor % GameState.CHECKPOINT_INTERVAL === 0) {
+                this.stateCache.set(this.cursor, this.cloneState(this.current));
+            }
         }
 
         return true;
@@ -170,17 +176,17 @@ export class GameState {
     stepBackward(): boolean {
         // Prevent going back to 0 (before first start_kyoku)
         if (this.cursor <= 1) return false;
-        const target = this.cursor - 1;
-        this.reset();
-        while (this.cursor < target) {
-            this.stepForward();
-        }
+        this.jumpTo(this.cursor - 1);
         return true;
     }
 
     jumpTo(index: number) {
         if (index < 1) index = 1; // Enforce minimum 1
         if (index > this.events.length) index = this.events.length;
+
+        // Skip expensive WASM calls during bulk replay
+        const needsReplay = index !== this.cursor;
+        if (needsReplay) this._isReplaying = true;
 
         if (index < this.cursor) {
             // Find nearest cached checkpoint at or before target index
@@ -200,6 +206,35 @@ export class GameState {
         }
         while (this.cursor < index) {
             this.stepForward();
+        }
+
+        if (needsReplay) {
+            this._isReplaying = false;
+            // Recompute waits for all players at the final position
+            this.recomputeWaits();
+        }
+    }
+
+    /** Recompute waits for all players at the current position (after replay). */
+    private recomputeWaits(): void {
+        if (!isWasmReady()) return;
+        const pc = this.config.playerCount;
+        for (let i = 0; i < pc; i++) {
+            const p = this.current.players[i];
+            p.waits = undefined;
+            const tileIds = p.hand
+                .map(t => mjaiToTileId(t))
+                .filter((id): id is number => id !== null);
+            const meldInputs = meldsToWasmInput(p.melds);
+            const expectedLen = 13 - meldInputs.length * 3;
+            if (tileIds.length === expectedLen) {
+                const waits34 = calculateWaits(tileIds, meldInputs);
+                if (waits34 && waits34.length > 0) {
+                    p.waits = waits34
+                        .map(t34 => tileIdToMjai(t34 * 4))
+                        .filter((s): s is string => s !== null);
+                }
+            }
         }
     }
 
@@ -465,25 +500,28 @@ export class GameState {
                     cond.afterKan = false;
 
                     // WASM-first waits computation with melds
+                    // Skip expensive WASM calls during bulk replay (jumpTo)
                     p.waits = undefined;
-                    if (isWasmReady()) {
-                        const tileIds = p.hand
-                            .map(t => mjaiToTileId(t))
-                            .filter((id): id is number => id !== null);
-                        const meldInputs = meldsToWasmInput(p.melds);
-                        const expectedLen = 13 - meldInputs.length * 3;
-                        if (tileIds.length === expectedLen) {
-                            const waits34 = calculateWaits(tileIds, meldInputs);
-                            if (waits34 && waits34.length > 0) {
-                                p.waits = waits34
-                                    .map(t34 => tileIdToMjai(t34 * 4))
-                                    .filter((s): s is string => s !== null);
+                    if (!this._isReplaying) {
+                        if (isWasmReady()) {
+                            const tileIds = p.hand
+                                .map(t => mjaiToTileId(t))
+                                .filter((id): id is number => id !== null);
+                            const meldInputs = meldsToWasmInput(p.melds);
+                            const expectedLen = 13 - meldInputs.length * 3;
+                            if (tileIds.length === expectedLen) {
+                                const waits34 = calculateWaits(tileIds, meldInputs);
+                                if (waits34 && waits34.length > 0) {
+                                    p.waits = waits34
+                                        .map(t34 => tileIdToMjai(t34 * 4))
+                                        .filter((s): s is string => s !== null);
+                                }
                             }
                         }
-                    }
-                    // Fallback to meta only if WASM did not produce waits
-                    if (!p.waits) {
-                        p.waits = e.meta?.waits || undefined;
+                        // Fallback to meta only if WASM did not produce waits
+                        if (!p.waits) {
+                            p.waits = e.meta?.waits || undefined;
+                        }
                     }
 
                     this.current.currentActor = e.actor;
