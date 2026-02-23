@@ -25,7 +25,7 @@
 * **Game Visualization**: Integrated replay viewer for Jupyter Notebooks.
 
 <div align="center">
-<img src="https://raw.githubusercontent.com/smly/RiichiEnv/main/docs/assets/visualizer1.png" width="45%"> <img src="https://raw.githubusercontent.com/smly/RiichiEnv/main/docs/assets/visualizer2.png" width="35%">
+<img src="https://raw.githubusercontent.com/smly/RiichiEnv/main/docs/assets/visualizer1.png" width="50%"> <img src="https://raw.githubusercontent.com/smly/RiichiEnv/main/docs/assets/visualizer2.png" width="30%">
 </div>
 
 ## 📦 Installation
