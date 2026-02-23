@@ -206,6 +206,12 @@ See [DATA_REPRESENTATION.md](docs/DATA_REPRESENTATION.md) for more details.
 
 ### Hand Evaluation
 
+`HandEvaluator` evaluates a hand for tenpai status, waiting tiles, and winning results. Create an instance with `HandEvaluator(tiles, melds)` or `HandEvaluator.hand_from_text(text)`.
+
+*   `is_tenpai()` — returns whether the hand is in tenpai.
+*   `get_waits()` — returns the list of winning tile IDs (136-tile format).
+*   `calc(win_tile, dora_indicators, ura_indicators, conditions)` — evaluates the hand with the given winning tile and returns a `WinResult`.
+
 ```python
 >>> from riichienv import HandEvaluator
 >>> import riichienv.convert as cvt
@@ -215,6 +221,18 @@ See [DATA_REPRESENTATION.md](docs/DATA_REPRESENTATION.md) for more details.
 True
 >>> he.calc(cvt.mpsz_to_tid("3s"), dora_indicators=[], ura_indicators=[])
 WinResult(is_win=True, yakuman=False, ron_agari=12000, tsumo_agari_oya=0, tsumo_agari_ko=0, yaku=[8, 11, 10, 22], han=5, fu=60)
+```
+
+The `yaku` field contains raw yaku IDs. Use `yaku_list()` to get detailed `Yaku` objects with Japanese/English names and platform-specific IDs.
+
+```python
+>>> result = he.calc(cvt.mpsz_to_tid("3s"), dora_indicators=[], ura_indicators=[])
+>>> for y in result.yaku_list():
+...     print(y)
+Yaku(id=8, name='役牌 發', name_en='Yakuhai (hatsu)', tenhou_id=19, mjsoul_id=8)
+Yaku(id=11, name='場風牌', name_en='Yakuhai (wind of round)', tenhou_id=14, mjsoul_id=11)
+Yaku(id=10, name='自風牌', name_en='Yakuhai (wind of place)', tenhou_id=10, mjsoul_id=10)
+Yaku(id=22, name='三暗刻', name_en='San Ankou', tenhou_id=29, mjsoul_id=22)
 ```
 
 ### Shanten Number Calculation
