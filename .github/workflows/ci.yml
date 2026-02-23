@@ -115,6 +115,24 @@ jobs:
         run: |
           uv run --python 3.14 python -m riichienv.__init__ && echo OK
 
+  ui-test:
+    name: vitest (riichienv-ui)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: cd riichienv-ui && npm ci
+
+      - name: Run tests
+        run: cd riichienv-ui && npm test
+
   wasm-build:
     name: wasm-pack build
     runs-on: ubuntu-latest
