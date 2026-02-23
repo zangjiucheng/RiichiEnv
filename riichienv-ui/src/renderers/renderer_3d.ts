@@ -198,11 +198,14 @@ export class Renderer3D implements IRenderer {
         // Call overlay
         this.renderCallOverlay(uiOverlay, state);
 
-        // Wait indicators for viewpoint player
-        if (vpPlayer && vpPlayer.waits && vpPlayer.waits.length > 0) {
-            const waitEl = this.renderWaitIndicator(vpPlayer.waits);
-            uiOverlay.appendChild(waitEl);
-        }
+        // Wait indicators for all players (UI overlay)
+        state.players.forEach((p, i) => {
+            if (p.waits && p.waits.length > 0) {
+                const relIndex = (i - this.viewpoint + pc) % pc;
+                const waitEl = this.renderWaitIndicator(p.waits, relIndex);
+                uiOverlay.appendChild(waitEl);
+            }
+        });
 
         this.sceneEl.appendChild(uiOverlay);
 
@@ -956,12 +959,19 @@ export class Renderer3D implements IRenderer {
     // =========================================================================
     // Wait indicator
     // =========================================================================
-    private renderWaitIndicator(waits: string[]): HTMLElement {
+    private renderWaitIndicator(waits: string[], relIndex: number): HTMLElement {
         const el = document.createElement('div');
         el.className = 'wait-indicator-3d';
-        Object.assign(el.style, {
-            bottom: '170px', left: '80px',
-        });
+
+        // Position near each player's panel on UI overlay
+        // Panel positions: 0=bottom-left, 1=right, 2=top-right, 3=left
+        const waitPositions: { [key: number]: { [k: string]: string } } = {
+            0: { bottom: '110px', left: '40%' },
+            1: { right: '50px', top: '55%' },
+            2: { top: '55px', right: '380px' },
+            3: { left: '70px', top: '30%' },
+        };
+        Object.assign(el.style, waitPositions[relIndex] || waitPositions[0]);
 
         const label = document.createElement('span');
         label.textContent = 'Wait:';
