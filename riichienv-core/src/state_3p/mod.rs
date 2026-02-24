@@ -713,7 +713,8 @@ impl GameState3P {
                                     if self.rule.yakuman_pao_is_liability_only {
                                         // Majsoul: PAO pays PAO portion only, non-PAO split normally
                                         let pao_amt = pao_yakuman_val * unit + honba_total;
-                                        let non_pao_yakuman_val = total_yakuman_val - pao_yakuman_val;
+                                        let non_pao_yakuman_val =
+                                            total_yakuman_val - pao_yakuman_val;
 
                                         deltas[pp as usize] -= pao_amt;
                                         total_win += pao_amt;

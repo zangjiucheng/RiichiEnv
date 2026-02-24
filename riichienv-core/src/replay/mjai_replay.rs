@@ -270,9 +270,9 @@ impl MjaiReplay {
 
         // Detect gzip by magic bytes (0x1f 0x8b) instead of extension
         let is_gzip = {
-            let buf = buf_reader.fill_buf().map_err(|e| {
-                PyValueError::new_err(format!("Failed to peek file: {}", e))
-            })?;
+            let buf = buf_reader
+                .fill_buf()
+                .map_err(|e| PyValueError::new_err(format!("Failed to peek file: {}", e)))?;
             buf.len() >= 2 && buf[0] == 0x1f && buf[1] == 0x8b
         };
 

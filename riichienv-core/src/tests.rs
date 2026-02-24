@@ -1571,10 +1571,7 @@ mod unit_tests {
 
         assert_eq!(deltas.iter().sum::<i32>(), 0, "Deltas must be zero-sum");
         assert_eq!(pao_amt, 16000, "PAO pays half of PAO portion (16000)");
-        assert_eq!(
-            discarder_amt, 48000,
-            "Discarder pays remainder (48000)"
-        );
+        assert_eq!(discarder_amt, 48000, "Discarder pays remainder (48000)");
         assert_eq!(deltas[w_pid], 64000, "Winner receives 64000");
     }
 }
