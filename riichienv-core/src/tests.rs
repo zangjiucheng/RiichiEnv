@@ -1086,16 +1086,16 @@ mod unit_tests {
         // 1m=0, 2m=1, 3m=2, 4m=3, 5m=4, 6m=5, 7m=6, 8m=7, 9m=8
         // 136-tile: 1m=0,1; 2m=4,5; 3m=8,9; 4m=12; 5m=16(red); 6m=20; 7m=24; 8m=28; 9m=32; 5m=17(pair)
         let tiles_136 = vec![
-            0, 1,   // 1m x2
-            4, 5,   // 2m x2
-            8, 9,   // 3m x2
-            12,     // 4m
-            16,     // 5m (red → 1 aka dora)
-            20,     // 6m
-            24,     // 7m
-            28,     // 8m
-            32,     // 9m
-            17,     // 5m (pair piece 1)
+            0, 1, // 1m x2
+            4, 5, // 2m x2
+            8, 9,  // 3m x2
+            12, // 4m
+            16, // 5m (red → 1 aka dora)
+            20, // 6m
+            24, // 7m
+            28, // 8m
+            32, // 9m
+            17, // 5m (pair piece 1)
         ];
 
         let calc = HandEvaluator::new(tiles_136, Vec::new());
@@ -1130,7 +1130,10 @@ mod unit_tests {
         let res = calc.calc(18, dora_indicators, vec![], Some(cond));
 
         assert!(res.is_win, "Should be a winning hand");
-        assert!(!res.yakuman, "Should NOT be flagged as yakuman (it's kazoe)");
+        assert!(
+            !res.yakuman,
+            "Should NOT be flagged as yakuman (it's kazoe)"
+        );
         // han should be reported as the raw total (>=14), but scores capped at single yakuman
         assert!(res.han >= 14, "Raw han should be >= 14, got {}", res.han);
 
@@ -1331,11 +1334,7 @@ mod unit_tests {
         deltas[w] += score;
         deltas[p] -= pao_amt;
         deltas[d] -= score - pao_amt;
-        assert_eq!(
-            deltas.iter().sum::<i32>(),
-            0,
-            "Deltas must be zero-sum"
-        );
+        assert_eq!(deltas.iter().sum::<i32>(), 0, "Deltas must be zero-sum");
     }
 
     #[test]
@@ -1467,7 +1466,10 @@ mod unit_tests {
         assert_eq!(deltas[pp], -64000, "PAO player pays all 64000");
         assert_eq!(deltas[oya], 0, "Oya pays nothing under Tenhou PAO");
         let other_ko = (0..np).find(|&i| i != pid && i != oya && i != pp).unwrap();
-        assert_eq!(deltas[other_ko], 0, "Other ko pays nothing under Tenhou PAO");
+        assert_eq!(
+            deltas[other_ko], 0,
+            "Other ko pays nothing under Tenhou PAO"
+        );
         assert_eq!(deltas[pid], 64000, "Winner receives 64000");
     }
 
