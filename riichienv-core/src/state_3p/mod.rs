@@ -689,7 +689,7 @@ impl GameState3P {
 
                                 if non_pao_amt > 0 {
                                     if pid == self.oya {
-                                        let share = non_pao_amt / (NP as i32 - 1);
+                                        let share = non_pao_yakuman_val * 16000;
                                         for i in 0..NP as u8 {
                                             if i != pid {
                                                 deltas[i as usize] -= share;
@@ -697,16 +697,16 @@ impl GameState3P {
                                             }
                                         }
                                     } else {
-                                        let oya_share = non_pao_amt / 2;
-                                        let ko_share = non_pao_amt / (NP as i32 - 1);
+                                        let oya_pay = non_pao_yakuman_val * 16000;
+                                        let ko_pay = non_pao_yakuman_val * 8000;
                                         for i in 0..NP as u8 {
                                             if i != pid {
                                                 if i == self.oya {
-                                                    deltas[i as usize] -= oya_share;
-                                                    total_win += oya_share;
+                                                    deltas[i as usize] -= oya_pay;
+                                                    total_win += oya_pay;
                                                 } else {
-                                                    deltas[i as usize] -= ko_share;
-                                                    total_win += ko_share;
+                                                    deltas[i as usize] -= ko_pay;
+                                                    total_win += ko_pay;
                                                 }
                                             }
                                         }
@@ -902,24 +902,18 @@ impl GameState3P {
                         let mut pao_amt = 0;
 
                         if res.yakuman {
-                            let mut pao_yakuman_val = 0;
+                            let mut has_pao = false;
                             for &yid in &res.yaku {
-                                let val = if [47, 48, 49, 50].contains(&yid) {
-                                    2
-                                } else {
-                                    1
-                                };
                                 if let Some(liable) =
                                     self.players[w_pid as usize].pao.get(&(yid as u8))
                                 {
-                                    pao_yakuman_val += val;
+                                    has_pao = true;
                                     pao_payer = *liable;
                                 }
                             }
-                            if pao_yakuman_val > 0 {
-                                let unit = if w_pid == self.oya { 48000 } else { 32000 };
-                                pao_amt = pao_yakuman_val * unit / 2
-                                    + ron_honba as usize * (NP - 1) * 100;
+                            if has_pao {
+                                // Ron with pao: pao player and discarder split total 50/50
+                                pao_amt = score as usize / 2;
                             }
                         }
 
@@ -1254,6 +1248,37 @@ impl GameState3P {
                 from_who,
                 called_tile: ct,
             });
+
+            // PAO check for Daiminkan
+            if action.action_type == ActionType::Daiminkan {
+                let (discarder, tile) = self.last_discard.unwrap();
+                let tile_val = tile / 4;
+                if (31..=33).contains(&tile_val) {
+                    let dragon_melds = self.players[p_idx]
+                        .melds
+                        .iter()
+                        .filter(|m| {
+                            let t = m.tiles[0] / 4;
+                            (31..=33).contains(&t) && (m.meld_type != MeldType::Chi)
+                        })
+                        .count();
+                    if dragon_melds == 3 {
+                        self.players[p_idx].pao.insert(37, discarder);
+                    }
+                } else if (27..=30).contains(&tile_val) {
+                    let wind_melds = self.players[p_idx]
+                        .melds
+                        .iter()
+                        .filter(|m| {
+                            let t = m.tiles[0] / 4;
+                            (27..=30).contains(&t) && (m.meld_type != MeldType::Chi)
+                        })
+                        .count();
+                    if wind_melds == 4 {
+                        self.players[p_idx].pao.insert(50, discarder);
+                    }
+                }
+            }
         }
 
         self.is_first_turn = false;
