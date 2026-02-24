@@ -1330,7 +1330,7 @@ mod unit_tests {
         // Simulate delta computation (as in state/mod.rs ron PAO logic):
         // winner w, pao_payer p, discarder d (all different)
         let (w, p, d) = (0usize, 1usize, 2usize);
-        let mut deltas = vec![0i32; 4];
+        let mut deltas = [0i32; 4];
         deltas[w] += score;
         deltas[p] -= pao_amt;
         deltas[d] -= score - pao_amt;
@@ -1365,16 +1365,16 @@ mod unit_tests {
             deltas[pp] -= pao_amt;
 
             // Non-PAO split among other players
-            for i in 0..np {
+            for (i, delta) in deltas.iter_mut().enumerate().take(np) {
                 if i != pid {
                     if i == oya {
-                        deltas[i] -= oya_pay;
+                        *delta -= oya_pay;
                     } else if i != pp {
                         // non-oya, non-pao ko player
-                        deltas[i] -= ko_pay;
+                        *delta -= ko_pay;
                     } else {
                         // pao player also pays ko share for non-pao part
-                        deltas[i] -= ko_pay;
+                        *delta -= ko_pay;
                     }
                 }
             }
@@ -1413,9 +1413,9 @@ mod unit_tests {
             deltas[pp] -= pao_amt;
 
             // Non-PAO split: each non-oya pays 16000
-            for i in 0..np {
+            for (i, delta) in deltas.iter_mut().enumerate().take(np) {
                 if i != pid {
-                    deltas[i] -= ko_share;
+                    *delta -= ko_share;
                 }
             }
 
@@ -1430,9 +1430,9 @@ mod unit_tests {
             // PAO player pays: 48000 (pao) + 16000 (ko share) = 64000
             assert_eq!(deltas[pp], -64000, "PAO player should pay 64000 total");
             // Other ko players each pay 16000
-            for i in 0..np {
+            for (i, &delta) in deltas.iter().enumerate().take(np) {
                 if i != pid && i != pp {
-                    assert_eq!(deltas[i], -16000, "Ko player {} should pay 16000", i);
+                    assert_eq!(delta, -16000, "Ko player {} should pay 16000", i);
                 }
             }
             // Winner gets: 64000 + 16000 + 16000 = 96000
