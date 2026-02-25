@@ -3,41 +3,63 @@
 Mahjong RL training pipeline for RiichiEnv. This package implements a 3-stage training approach:
 
 1. **GRP (Global Reward Predictor)** — Trains a reward shaping model that predicts final game rankings from round-level features, providing dense reward signals for downstream RL.
-2. **Offline RL (CQL)** — Conservative Q-Learning on human replay data with GRP-shaped rewards.
-3. **Online RL (DQN + CQL)** — Fine-tunes the offline QNetwork via self-play with epsilon-greedy exploration and CQL regularization, using Ray-distributed workers.
+2. **Offline RL (BC or CQL)** — Behavior Cloning or Conservative Q-Learning on human replay data with GRP-shaped rewards.
+3. **Online RL (PPO or DQN)** — Fine-tunes the offline model via self-play with epsilon-greedy exploration using Ray-distributed workers.
+
+* RiichiEnv と強化学習を用いて麻雀AIを作るためのライブラリ
+* configs に学習率やモデルの深さ、モデルファイルパスなどのハイパーパラメータを定義して実験管理できるようにする
+* wandb で学習の様子を可視化できるようにする
 
 ## Setup
 
 ```sh
 uv sync
+
+# Stage1
+uv run python scripts/train_grp.py -c src/riichienv_ml/configs/4p/grp.yml
+
+# Stage2
+uv run python scripts/train_bc.py -c src/riichienv_ml/configs/4p/bc_mortal.yml
+
+# Stage3
+uv run python scripts/train_ppo.py -c src/riichienv_ml/configs/4p/ppo.yml
 ```
 
-## Usage
-
-All scripts read from a shared config file (`configs/baseline.yml`) by default. CLI arguments override config values.
-
-```sh
-# Stage 1: Train GRP reward model
-uv run python scripts/train_grp.py -c configs/baseline.yml
-
-# Stage 2: Train offline CQL model
-uv run python scripts/train_cql.py -c configs/baseline.yml
-uv run python scripts/train_cql.py -c configs/baseline.yml --lr 5e-4 --batch_size 128 --alpha 0.1 --num_blocks 6 --conv_channels 128
-
-# Stage 3: Train online RL model
-uv run python scripts/train_online.py -c configs/baseline.yml
-uv run python scripts/train_online.py -c configs/baseline.yml --load_model cql_model.pth --num_workers 12 --num_steps 5000000
-```
-
-## Project Structure
+## Structures
 
 ```
-configs/          Config YAML files
-scripts/          Training entry points
-src/riichienv_ml/ Package source code
-  config.py       Pydantic config models + YAML loader
-  utils.py        Shared utilities
-  models/         Model architectures (ResNetBackbone, QNetwork, GRP, Mortal)
-  data/           Dataset classes and observation encoders
-  training/       Trainer classes, learner, buffer, Ray workers
+# Configs (4 players)
+src/riichienv_ml/configs/4p/grp.yml
+src/riichienv_ml/configs/4p/bc_mortal.yml
+src/riichienv_ml/configs/4p/bc_logs.yml
+src/riichienv_ml/configs/4p/cql.yml
+src/riichienv_ml/configs/4p/ppo.yml
+src/riichienv_ml/configs/4p/ppo_v2.yml
+src/riichienv_ml/configs/4p/ppo_v3.yml
+
+# Configs (3 players)
+src/riichienv_ml/configs/3p/grp.yml
+src/riichienv_ml/configs/3p/bc_logs.yml
+src/riichienv_ml/configs/3p/ppo.yml
+src/riichienv_ml/configs/3p/ppo_v2.yml
+src/riichienv_ml/configs/3p/ppo_v3.yml
+
+# Dataset
+src/riichienv_ml/datasets/mjai_logs.py
+src/riichienv_ml/datasets/ppo.py
+
+# Features
+src/riichienv_ml/features/feat_v1.py
+src/riichienv_ml/features/feat_v2.py  # v1 + discard hisotry decay + shanten efficiency
+src/riichienv_ml/features/feat_v3.py  # v2 + other features
+
+# Models
+src/riichienv_ml/models/
+
+# Trainers
+src/riichienv_ml/trainers/grp.py
+src/riichienv_ml/trainers/bc_mortal.py
+src/riichienv_ml/trainers/bc_logs.py
+src/riichienv_ml/trainers/ppo.py
+src/riichienv_ml/trainers/cql.py
 ```
