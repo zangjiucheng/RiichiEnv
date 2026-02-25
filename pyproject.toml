@@ -51,6 +51,7 @@ exclude = [
     ".venv",
     "demos",
     "riichienv-ml",
+    "riichienv-ml-xt",
     "tools",
 ]
 
@@ -102,6 +103,7 @@ root_packages = ["riichienv"]
 [tool.uv.workspace]
 members = [
     "riichienv-ml",
+    "riichienv-ml-xt",
 ]
 
 [tool.ty.environment]

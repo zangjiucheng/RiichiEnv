@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "riichienv",
     "riichienv-ml",
+    "riichienv-ml-xt",
 ]
 
 [[package]]
@@ -582,7 +583,7 @@ wheels = [
 
 [[package]]
 name = "libriichi"
-source = { editable = "riichienv-ml/3rdparty/Mortal/libriichi" }
+source = { editable = "riichienv-ml-xt/3rdparty/Mortal/libriichi" }
 
 [[package]]
 name = "loguru"
@@ -1449,7 +1450,6 @@ version = "0.1.0"
 source = { editable = "riichienv-ml" }
 dependencies = [
     { name = "dotenv" },
-    { name = "libriichi" },
     { name = "loguru" },
     { name = "numpy" },
     { name = "polars" },
@@ -1467,7 +1467,6 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "libriichi", editable = "riichienv-ml/3rdparty/Mortal/libriichi" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.4.1" },
     { name = "polars", specifier = ">=1.37.1" },
@@ -1480,6 +1479,27 @@ requires-dist = [
     { name = "torchrl", specifier = ">=0.3.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "wandb", specifier = ">=0.24.0" },
+]
+
+[[package]]
+name = "riichienv-ml-xt"
+version = "0.1.0"
+source = { editable = "riichienv-ml-xt" }
+dependencies = [
+    { name = "libriichi" },
+    { name = "loguru" },
+    { name = "numpy" },
+    { name = "riichienv-ml" },
+    { name = "torch" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "libriichi", editable = "riichienv-ml-xt/3rdparty/Mortal/libriichi" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "riichienv-ml", editable = "riichienv-ml" },
+    { name = "torch", specifier = ">=2.0" },
 ]
 
 [[package]]

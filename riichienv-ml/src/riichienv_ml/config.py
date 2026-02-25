@@ -86,6 +86,13 @@ class WandbConfig(BaseModel):
     wandb_group: str | None = None
 
 
+class EvaluatorConfig(BaseModel):
+    model_path: str | None = None
+    eval_episodes: int = 48
+    eval_interval: int = 50000
+    eval_device: str = "cpu"
+
+
 class GrpConfig(WandbConfig):
     game: GameConfig = GameConfig()
     data_glob: str = "/data/mjsoul/mjsoul-4p/2024/**/*.jsonl.gz"
@@ -122,12 +129,8 @@ class BcConfig(WandbConfig):
     encoder_class: str = "riichienv_ml.features.feat_v1.ObservationEncoder"
     # Mortal BC (AGPL-isolated)
     mortal: bool = False
-    # Mortal evaluation (4P only)
-    mortal_model_path: str | None = None
-    mortal_libriichi_path: str | None = None
-    mortal_eval_episodes: int = 48
-    mortal_eval_interval: int = 50000
-    mortal_device: str = "cpu"
+    # Third-party evaluator (4P only)
+    evaluator: EvaluatorConfig = EvaluatorConfig()
 
 
 class PpoConfig(WandbConfig):
@@ -187,11 +190,8 @@ class PpoConfig(WandbConfig):
     grp_model: str | None = None
     pts_weight: list[float] = [10.0, 4.0, -4.0, -10.0]
     async_rollout: bool = False
-    # Mortal evaluation (4P only)
-    mortal_model_path: str | None = None
-    mortal_libriichi_path: str | None = None
-    mortal_eval_episodes: int = 48
-    mortal_device: str = "cpu"
+    # Third-party evaluator (4P only)
+    evaluator: EvaluatorConfig = EvaluatorConfig()
 
 
 class Config(BaseModel):

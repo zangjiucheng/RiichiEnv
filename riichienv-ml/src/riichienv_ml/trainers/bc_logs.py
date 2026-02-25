@@ -17,30 +17,25 @@ from riichienv_ml.models.grp_model import RewardPredictor
 from riichienv_ml.utils import AverageMeter
 
 
-def _create_mortal_evaluator(cfg_kwargs: dict, model_config: dict):
-    """Create MortalEvaluator if configured and 4P mode. Returns None otherwise."""
-    mortal_model_path = cfg_kwargs.get("mortal_model_path")
+def _create_evaluator(cfg_kwargs: dict, model_config: dict):
+    """Create third-party evaluator if configured and 4P mode. Returns None otherwise."""
+    model_path = cfg_kwargs.get("model_path")
     n_players = cfg_kwargs.get("n_players", 4)
-    if mortal_model_path is None or n_players != 4:
+    if model_path is None or n_players != 4:
         return None
 
-    try:
-        from riichienv_ml.trainers._mortal_eval import MortalEvaluator
-        evaluator = MortalEvaluator(
-            mortal_model_path=mortal_model_path,
-            libriichi_path=cfg_kwargs.get("mortal_libriichi_path"),
-            model_class=cfg_kwargs.get("model_class"),
-            model_config=model_config,
-            encoder_class=cfg_kwargs.get("encoder_class"),
-            tile_dim=cfg_kwargs.get("tile_dim", 34),
-            device=cfg_kwargs.get("device_str", "cuda"),
-            mortal_device=cfg_kwargs.get("mortal_device", "cpu"),
-        )
-        logger.info(f"MortalEvaluator initialized (model={mortal_model_path})")
-        return evaluator
-    except Exception as e:
-        logger.warning(f"Failed to initialize MortalEvaluator: {e}")
-        return None
+    from riichienv_ml.evaluator import load_evaluator
+
+    return load_evaluator(
+        evaluator_name="mortal",
+        model_path=model_path,
+        model_class=cfg_kwargs.get("model_class"),
+        model_config=model_config,
+        encoder_class=cfg_kwargs.get("encoder_class"),
+        tile_dim=cfg_kwargs.get("tile_dim", 34),
+        device=cfg_kwargs.get("device_str", "cuda"),
+        eval_device=cfg_kwargs.get("eval_device", "cpu"),
+    )
 
 
 def cql_loss(q_values: torch.Tensor, current_actions: torch.Tensor, masks: torch.Tensor) -> torch.Tensor:
@@ -79,11 +74,7 @@ class Trainer:
         n_players: int = 4,
         replay_rule: str = "mjsoul",
         tile_dim: int = 34,
-        mortal_model_path: str | None = None,
-        mortal_libriichi_path: str | None = None,
-        mortal_eval_episodes: int = 48,
-        mortal_eval_interval: int = 50000,
-        mortal_device: str = "cpu",
+        evaluator_config=None,
     ):
         self.grp_model_path = grp_model_path
         self.pts_weight = pts_weight
@@ -106,14 +97,16 @@ class Trainer:
         self.n_players = n_players
         self.replay_rule = replay_rule
         self.tile_dim = tile_dim
-        self.mortal_eval_episodes = mortal_eval_episodes
-        self.mortal_eval_interval = mortal_eval_interval
 
-        self.mortal_evaluator = _create_mortal_evaluator(
+        if evaluator_config is None:
+            from riichienv_ml.config import EvaluatorConfig
+            evaluator_config = EvaluatorConfig()
+        self.evaluator_config = evaluator_config
+
+        self.tp_evaluator = _create_evaluator(
             cfg_kwargs=dict(
-                mortal_model_path=mortal_model_path,
-                mortal_libriichi_path=mortal_libriichi_path,
-                mortal_device=mortal_device,
+                model_path=evaluator_config.model_path,
+                eval_device=evaluator_config.eval_device,
                 model_class=model_class,
                 encoder_class=encoder_class,
                 tile_dim=tile_dim,
@@ -239,9 +232,9 @@ class Trainer:
                     wandb.log(log_dict, step=step)
 
                 # Periodic Mortal evaluation
-                if (self.mortal_evaluator is not None
+                if (self.tp_evaluator is not None
                         and step > 0
-                        and step % self.mortal_eval_interval == 0):
+                        and step % self.evaluator_config.eval_interval == 0):
                     try:
                         ckpt_path = output_path.replace(".pth", f"_step{step}.pth")
                         torch.save(model.state_dict(), ckpt_path)
@@ -249,14 +242,14 @@ class Trainer:
 
                         hw = {k: v.cpu() for k, v in model.state_dict().items()}
                         model.eval()
-                        mortal_metrics = self.mortal_evaluator.evaluate(
-                            hw, num_episodes=self.mortal_eval_episodes)
+                        mortal_metrics = self.tp_evaluator.evaluate(
+                            hw, num_episodes=self.evaluator_config.eval_episodes)
                         model.train()
                         logger.info(
                             f"Mortal Eval @ step {step}: "
                             f"rank={mortal_metrics['mortal_eval/rank_mean']:.2f}"
                             f"\u00b1{mortal_metrics['mortal_eval/rank_se']:.2f}"
-                            f", reward={mortal_metrics['mortal_eval/reward_mean']:.0f}"
+                            f", score={mortal_metrics['mortal_eval/score_mean']:.0f}"
                             f", 1st={mortal_metrics['mortal_eval/1st_rate']:.1%}"
                             f", 4th={mortal_metrics['mortal_eval/4th_rate']:.1%}"
                             f" ({mortal_metrics['mortal_eval/episodes']} eps"
@@ -281,17 +274,17 @@ class Trainer:
                 break
 
         # Final Mortal evaluation
-        if self.mortal_evaluator is not None:
+        if self.tp_evaluator is not None:
             try:
                 hw = {k: v.cpu() for k, v in model.state_dict().items()}
                 model.eval()
-                mortal_metrics = self.mortal_evaluator.evaluate(
-                    hw, num_episodes=self.mortal_eval_episodes)
+                mortal_metrics = self.tp_evaluator.evaluate(
+                    hw, num_episodes=self.evaluator_config.eval_episodes)
                 logger.info(
                     f"Final Mortal Eval: "
                     f"rank={mortal_metrics['mortal_eval/rank_mean']:.2f}"
                     f"\u00b1{mortal_metrics['mortal_eval/rank_se']:.2f}"
-                    f", reward={mortal_metrics['mortal_eval/reward_mean']:.0f}"
+                    f", score={mortal_metrics['mortal_eval/score_mean']:.0f}"
                     f", 1st={mortal_metrics['mortal_eval/1st_rate']:.1%}"
                     f", 4th={mortal_metrics['mortal_eval/4th_rate']:.1%}")
                 wandb.log(mortal_metrics, step=step)

@@ -23,28 +23,23 @@ from riichienv_ml.trainers._dqn_learner import MahjongLearner
 from riichienv_ml.datasets.ppo import OnPolicyBuffer
 
 
-def _create_mortal_evaluator(cfg, model_config):
-    """Create MortalEvaluator if configured and 4P mode. Returns None otherwise."""
-    if cfg.mortal_model_path is None or cfg.game.n_players != 4:
+def _create_evaluator(cfg, model_config):
+    """Create third-party evaluator if configured and 4P mode. Returns None otherwise."""
+    if cfg.evaluator.model_path is None or cfg.game.n_players != 4:
         return None
 
-    try:
-        from riichienv_ml.trainers._mortal_eval import MortalEvaluator
-        evaluator = MortalEvaluator(
-            mortal_model_path=cfg.mortal_model_path,
-            libriichi_path=cfg.mortal_libriichi_path,
-            model_class=cfg.model_class,
-            model_config=model_config,
-            encoder_class=cfg.encoder_class,
-            tile_dim=cfg.game.tile_dim,
-            device=cfg.device,
-            mortal_device=cfg.mortal_device,
-        )
-        logger.info(f"MortalEvaluator initialized (model={cfg.mortal_model_path})")
-        return evaluator
-    except Exception as e:
-        logger.warning(f"Failed to initialize MortalEvaluator: {e}")
-        return None
+    from riichienv_ml.evaluator import load_evaluator
+
+    return load_evaluator(
+        evaluator_name="mortal",
+        model_path=cfg.evaluator.model_path,
+        model_class=cfg.model_class,
+        model_config=model_config,
+        encoder_class=cfg.encoder_class,
+        tile_dim=cfg.game.tile_dim,
+        device=cfg.device,
+        eval_device=cfg.evaluator.eval_device,
+    )
 
 
 def evaluate_parallel(workers, hero_weights, baseline_weights, num_episodes):
@@ -122,7 +117,7 @@ def run_training(cfg):
         baseline_learner.load_cql_weights(cfg.load_model)
         baseline_learner.model.eval()
 
-    mortal_evaluator = _create_mortal_evaluator(cfg, model_config)
+    tp_evaluator = _create_evaluator(cfg, model_config)
 
     buffer = OnPolicyBuffer(device=cfg.device)
 
@@ -282,15 +277,15 @@ def run_training(cfg):
                     except Exception as e:
                         print(f"Evaluation failed at step {step}: {e}")
 
-                if mortal_evaluator is not None:
+                if tp_evaluator is not None:
                     try:
                         hw = {k: v.cpu() for k, v in learner.get_weights().items()}
-                        mortal_metrics = mortal_evaluator.evaluate(
-                            hw, num_episodes=cfg.mortal_eval_episodes)
+                        mortal_metrics = tp_evaluator.evaluate(
+                            hw, num_episodes=cfg.evaluator.eval_episodes)
                         logger.info(
                             f"Mortal Eval: rank={mortal_metrics['mortal_eval/rank_mean']:.2f}"
                             f"\u00b1{mortal_metrics['mortal_eval/rank_se']:.2f}"
-                            f", reward={mortal_metrics['mortal_eval/reward_mean']:.0f}"
+                            f", score={mortal_metrics['mortal_eval/score_mean']:.0f}"
                             f", 1st={mortal_metrics['mortal_eval/1st_rate']:.1%}"
                             f", 4th={mortal_metrics['mortal_eval/4th_rate']:.1%}"
                             f" ({mortal_metrics['mortal_eval/episodes']} eps"
@@ -354,15 +349,15 @@ def run_training(cfg):
         except Exception as e:
             print(f"Final Evaluation failed: {e}")
 
-    if mortal_evaluator is not None:
+    if tp_evaluator is not None:
         try:
             hw = {k: v.cpu() for k, v in learner.get_weights().items()}
-            mortal_metrics = mortal_evaluator.evaluate(
-                hw, num_episodes=cfg.mortal_eval_episodes)
+            mortal_metrics = tp_evaluator.evaluate(
+                hw, num_episodes=cfg.evaluator.eval_episodes)
             logger.info(
                 f"Final Mortal Eval: rank={mortal_metrics['mortal_eval/rank_mean']:.2f}"
                 f"\u00b1{mortal_metrics['mortal_eval/rank_se']:.2f}"
-                f", reward={mortal_metrics['mortal_eval/reward_mean']:.0f}"
+                f", score={mortal_metrics['mortal_eval/score_mean']:.0f}"
                 f", 1st={mortal_metrics['mortal_eval/1st_rate']:.1%}"
                 f", 4th={mortal_metrics['mortal_eval/4th_rate']:.1%}")
             wandb.log(mortal_metrics, step=step)

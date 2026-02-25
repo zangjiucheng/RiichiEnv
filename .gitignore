@@ -6,3 +6,4 @@ target
 trunk
 **/wandb
 **/.env
+riichienv-ml-xt/

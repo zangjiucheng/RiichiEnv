@@ -21,11 +21,11 @@ bc:
   model_class: riichienv_ml.models.q_network.QNetwork
   dataset_class: riichienv_ml.datasets.mjai_logs.MCDataset
   encoder_class: riichienv_ml.features.feat_v1.ObservationEncoder
-  mortal_model_path: /data/workspace/mortal/mortal_v4.pth
-  mortal_libriichi_path: /data/gitws/riichienv-validation/RiichiEnv/riichienv-ml/3rdparty/Mortal/mortal
-  mortal_eval_episodes: 48
-  mortal_eval_interval: 100000
-  mortal_device: cuda
+  evaluator:
+    model_path: /data/workspace/best_model/best.pth
+    eval_episodes: 48
+    eval_interval: 100000
+    eval_device: cuda
   model:
     in_channels: 74
     num_blocks: 16
