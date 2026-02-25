@@ -19,10 +19,11 @@ class ThirdPartyEvaluator(Protocol):
     """Minimal interface that evaluator plugins must satisfy."""
 
     def evaluate(self, hero_weights: dict, num_episodes: int = 48) -> dict: ...
+    def metrics_to_logline(self, metrics: dict) -> str: ...
 
 
 def load_evaluator(
-    evaluator_name: Literal["mortal"] | Literal["kanachan"] = "mortal",
+    evaluator_name: Literal["mortal"] | Literal["riichienv"] | Literal["kanachan"] = "mortal",
     **kwargs,
 ) -> ThirdPartyEvaluator | None:
     """Discover and instantiate an evaluator plugin by name.

@@ -242,19 +242,12 @@ class Trainer:
 
                         hw = {k: v.cpu() for k, v in model.state_dict().items()}
                         model.eval()
-                        mortal_metrics = self.tp_evaluator.evaluate(
+                        metrics = self.tp_evaluator.evaluate(
                             hw, num_episodes=self.evaluator_config.eval_episodes)
                         model.train()
-                        logger.info(
-                            f"Mortal Eval @ step {step}: "
-                            f"rank={mortal_metrics['mortal_eval/rank_mean']:.2f}"
-                            f"\u00b1{mortal_metrics['mortal_eval/rank_se']:.2f}"
-                            f", score={mortal_metrics['mortal_eval/score_mean']:.0f}"
-                            f", 1st={mortal_metrics['mortal_eval/1st_rate']:.1%}"
-                            f", 4th={mortal_metrics['mortal_eval/4th_rate']:.1%}"
-                            f" ({mortal_metrics['mortal_eval/episodes']} eps"
-                            f", {mortal_metrics['mortal_eval/time']:.1f}s)")
-                        wandb.log(mortal_metrics, step=step)
+                        logline = self.tp_evaluator.metrics_to_logline(metrics)
+                        logger.info(f"Eval @ step {step}: {logline}")
+                        wandb.log(metrics, step=step)
                     except Exception as e:
                         logger.error(f"Mortal evaluation failed at step {step}: {e}")
 
@@ -278,16 +271,11 @@ class Trainer:
             try:
                 hw = {k: v.cpu() for k, v in model.state_dict().items()}
                 model.eval()
-                mortal_metrics = self.tp_evaluator.evaluate(
+                metrics = self.tp_evaluator.evaluate(
                     hw, num_episodes=self.evaluator_config.eval_episodes)
-                logger.info(
-                    f"Final Mortal Eval: "
-                    f"rank={mortal_metrics['mortal_eval/rank_mean']:.2f}"
-                    f"\u00b1{mortal_metrics['mortal_eval/rank_se']:.2f}"
-                    f", score={mortal_metrics['mortal_eval/score_mean']:.0f}"
-                    f", 1st={mortal_metrics['mortal_eval/1st_rate']:.1%}"
-                    f", 4th={mortal_metrics['mortal_eval/4th_rate']:.1%}")
-                wandb.log(mortal_metrics, step=step)
+                logline = self.tp_evaluator.metrics_to_logline(metrics)
+                logger.info(f"Final Eval: {logline}")
+                wandb.log(metrics, step=step)
             except Exception as e:
                 logger.error(f"Final Mortal evaluation failed: {e}")
 

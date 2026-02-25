@@ -107,7 +107,8 @@ class GrpConfig(WandbConfig):
     samples_per_file: int = 32
 
 
-class BcConfig(WandbConfig):
+class OfflineTrainConfig(WandbConfig):
+    """Shared config for offline BC and CQL training."""
     game: GameConfig = GameConfig()
     data_glob: str = "/data/mjsoul/mjsoul-4p/2024/**/*.jsonl.gz"
     grp_model: str = "./grp_model.pth"
@@ -123,14 +124,28 @@ class BcConfig(WandbConfig):
     pts_weight: list[float] = [10.0, 4.0, -4.0, -10.0]
     weight_decay: float = 0.0
     aux_weight: float = 0.0
+    value_coef: float = 0.0
     model: ModelConfig = ModelConfig()
     model_class: str = "riichienv_ml.models.q_network.QNetwork"
     dataset_class: str = "riichienv_ml.datasets.mjai_logs.MCDataset"
     encoder_class: str = "riichienv_ml.features.feat_v1.ObservationEncoder"
-    # Mortal BC (AGPL-isolated)
-    mortal: bool = False
     # Third-party evaluator (4P only)
     evaluator: EvaluatorConfig = EvaluatorConfig()
+
+
+class BcConfig(OfflineTrainConfig):
+    # Online teacher BC (vs offline logs BC)
+    online: bool = False
+    # Online teacher settings (used when online=True)
+    teacher_model_name: Literal["kanachan", "mortal"] = "kanachan"     # model type ("kanachan", "mortal"...)
+    teacher_model_path: str | None = None
+    num_ray_workers: int = 4
+    num_envs_per_worker: int = 16
+    num_steps: int = 500
+
+
+class CqlConfig(OfflineTrainConfig):
+    pass
 
 
 class PpoConfig(WandbConfig):
@@ -197,6 +212,7 @@ class PpoConfig(WandbConfig):
 class Config(BaseModel):
     grp: GrpConfig = GrpConfig()
     bc: BcConfig = BcConfig()
+    cql: CqlConfig = CqlConfig()
     ppo: PpoConfig = PpoConfig()
 
 

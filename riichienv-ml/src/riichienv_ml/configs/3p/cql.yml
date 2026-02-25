@@ -1,4 +1,4 @@
-bc:
+cql:
   game:
     n_players: 3
   data_glob: "/data/mjsoul/mjsoul-3p/**/*.jsonl.gz"

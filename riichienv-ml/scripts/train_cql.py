@@ -1,11 +1,8 @@
-"""Train Offline BC model.
-
-Supports standard BC (bc_logs) and ActorCriticNetwork BC (bc_model) via config.
-Auto-detects mode from config's `online` flag.
+"""Train Offline CQL model.
 
 Usage:
-    uv run python scripts/train_bc.py -c src/riichienv_ml/configs/4p/bc_logs.yml
-    uv run python scripts/train_bc.py -c src/riichienv_ml/configs/4p/bc_model.yml
+    uv run python scripts/train_cql.py -c src/riichienv_ml/configs/4p/cql.yml
+    uv run python scripts/train_cql.py -c src/riichienv_ml/configs/3p/cql.yml
 """
 import argparse
 from pathlib import Path
@@ -21,7 +18,7 @@ from riichienv_ml.trainers.bc_logs import Trainer
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train Offline BC model")
+    parser = argparse.ArgumentParser(description="Train Offline CQL model")
     parser.add_argument("-c", "--config", type=str, required=True, help="Path to config YAML")
     parser.add_argument("--data_glob", type=str, default=None, help="Glob path for training data")
     parser.add_argument("--grp_model", type=str, default=None, help="Path to reward model")
@@ -41,7 +38,7 @@ def parse_args() -> argparse.Namespace:
 
 def main():
     args = parse_args()
-    cfg = load_config(args.config).bc
+    cfg = load_config(args.config).cql
 
     # Override config with CLI args
     overrides = {}
@@ -62,39 +59,10 @@ def main():
         cfg = cfg.model_copy(update={"model": cfg.model.model_copy(update=model_overrides)})
 
     log_dir = str(Path(cfg.output).parent)
-    setup_logging(log_dir, "train_bc")
+    setup_logging(log_dir, "train_cql")
     init_wandb(cfg, config_path=args.config)
 
     game = cfg.game
-
-    # Online teacher BC vs offline logs BC
-    if cfg.online:
-        from riichienv_ml.trainers.bc_model import BCModelTrainer
-        trainer = BCModelTrainer(
-            grp_model_path=cfg.grp_model,
-            pts_weight=cfg.pts_weight,
-            device_str=cfg.device,
-            gamma=cfg.gamma,
-            batch_size=cfg.batch_size,
-            lr=cfg.lr,
-            weight_decay=cfg.weight_decay,
-            value_coef=cfg.value_coef,
-            model_config=cfg.model.model_dump(),
-            model_class=cfg.model_class,
-            encoder_class=cfg.encoder_class,
-            n_players=game.n_players,
-            tile_dim=game.tile_dim,
-            game_mode=game.game_mode,
-            evaluator_config=cfg.evaluator,
-            # Online teacher settings
-            teacher_model_name=cfg.teacher_model_name,
-            teacher_model_path=cfg.teacher_model_path,
-            num_ray_workers=cfg.num_ray_workers,
-            num_envs_per_worker=cfg.num_envs_per_worker,
-            num_steps=cfg.num_steps,
-        )
-        trainer.train(cfg.output)
-        return
 
     trainer = Trainer(
         grp_model_path=cfg.grp_model,
