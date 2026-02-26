@@ -94,6 +94,7 @@ def main():
             num_envs_per_worker=cfg.num_envs_per_worker,
             num_steps=cfg.num_steps,
             train_epochs=cfg.train_epochs,
+            warmup_steps=cfg.warmup_steps,
             worker_device=cfg.worker_device,
             gpu_per_worker=cfg.gpu_per_worker,
         )

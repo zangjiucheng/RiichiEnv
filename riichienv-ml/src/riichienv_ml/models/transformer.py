@@ -1,4 +1,4 @@
-"""Transformer Actor-Critic for sequence (Kanachan v3) feature encoding.
+"""Transformer Actor-Critic for sequence feature encoding.
 
 Accepts the packed flat tensor produced by SequenceFeaturePackedEncoder,
 unpacks it into sparse / numeric / progression / candidate groups,

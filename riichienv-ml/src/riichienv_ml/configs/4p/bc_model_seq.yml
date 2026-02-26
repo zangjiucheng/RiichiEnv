@@ -6,7 +6,7 @@ bc:
   output: /data/workspace/riichienv-ml/4p/bc_model_seq.pth
   device: cuda
   batch_size: 128
-  lr: 5e-4
+  lr: 1e-4
   lr_min: 1e-5
   gamma: 1.0
   pts_weight: [6.0, 4.0, 2.0, 0.0]

@@ -52,6 +52,7 @@ class BCModelTrainer:
         num_envs_per_worker: int = 16,
         num_steps: int = 500,
         train_epochs: int = 3,
+        warmup_steps: int = 0,
         worker_device: str = "cpu",
         gpu_per_worker: float = 0.0,
     ):
@@ -79,6 +80,7 @@ class BCModelTrainer:
         self.num_envs_per_worker = num_envs_per_worker
         self.num_steps = num_steps
         self.train_epochs = train_epochs
+        self.warmup_steps = warmup_steps
         self.worker_device = worker_device
         self.gpu_per_worker = gpu_per_worker
 
@@ -100,18 +102,23 @@ class BCModelTrainer:
             model_config=self.model_config,
         )
 
-    def _create_cosine_scheduler(self, optimizer, total_steps):
-        """One-way cosine decay from lr to lr_min (no cycling)."""
+    def _create_cosine_scheduler(self, optimizer, total_steps, warmup_steps=0):
+        """Linear warmup + one-way cosine decay from lr to lr_min."""
         lr_min_ratio = self.lr_min / self.lr
 
-        def cosine_decay(step):
-            if step >= total_steps:
+        def lr_lambda(step):
+            # Phase 1: linear warmup  0 → lr
+            if step < warmup_steps:
+                return step / warmup_steps
+            # Phase 2: cosine decay  lr → lr_min
+            decay_steps = total_steps - warmup_steps
+            progress = (step - warmup_steps) / max(1, decay_steps)
+            if progress >= 1.0:
                 return lr_min_ratio
-            progress = step / total_steps
             return lr_min_ratio + (1 - lr_min_ratio) * 0.5 * (
                 1 + math.cos(math.pi * progress))
 
-        return LambdaLR(optimizer, lr_lambda=cosine_decay)
+        return LambdaLR(optimizer, lr_lambda=lr_lambda)
 
     def _combine_transitions(self, results):
         """Combine transitions from all workers into a single batch."""
@@ -254,13 +261,15 @@ class BCModelTrainer:
             if scheduler is None:
                 mb_per_step = (N + self.batch_size - 1) // self.batch_size
                 total_opt_steps = mb_per_step * self.train_epochs * self.num_steps
+                warmup_opt_steps = mb_per_step * self.train_epochs * self.warmup_steps
                 scheduler = self._create_cosine_scheduler(
-                    optimizer, total_opt_steps)
+                    optimizer, total_opt_steps, warmup_opt_steps)
+                warmup_msg = f", warmup {warmup_opt_steps} steps" if warmup_opt_steps else ""
                 logger.info(
                     f"LR scheduler: cosine {self.lr} -> {self.lr_min} "
                     f"over {total_opt_steps} steps "
                     f"({mb_per_step} mb/step x {self.train_epochs} epochs "
-                    f"x {self.num_steps} steps)")
+                    f"x {self.num_steps} steps{warmup_msg})")
             total_transitions += N
 
             # Aggregate worker stats

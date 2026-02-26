@@ -1,4 +1,4 @@
-"""Plugin discovery for third-party evaluators (e.g. Mortal, kanachan).
+"""Plugin discovery for third-party evaluators (e.g. Mortal, akochan, kanachan).
 
 Evaluator plugins register via the ``riichienv_ml.evaluators`` entry-point
 group.  The main training code calls :func:`load_evaluator` which returns
@@ -23,7 +23,7 @@ class ThirdPartyEvaluator(Protocol):
 
 
 def load_evaluator(
-    evaluator_name: Literal["mortal"] | Literal["riichienv"] | Literal["kanachan"] = "mortal",
+    evaluator_name: Literal["mortal", "riichienv", "akochan", "kanachan"] = "mortal",
     **kwargs,
 ) -> ThirdPartyEvaluator | None:
     """Discover and instantiate an evaluator plugin by name.

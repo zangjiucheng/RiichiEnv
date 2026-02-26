@@ -140,6 +140,7 @@ class BcConfig(OfflineTrainConfig):
     online: bool = False
     # LR scheduler
     lr_min: float = 1e-5
+    warmup_steps: int = 0               # linear warmup (in collection rounds, same unit as num_steps)
     # Online teacher settings (used when online=True)
     teacher_model_name: Literal["kanachan", "mortal"] = "kanachan"     # model type ("kanachan", "mortal"...)
     teacher_model_path: str | None = None

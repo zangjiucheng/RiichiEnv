@@ -83,8 +83,16 @@ class PPOWorker:
         if self._compiled_warmup:
             return
         target = self.model._orig_mod if hasattr(self.model, "_orig_mod") else self.model
-        in_ch = target.backbone.conv_in.in_channels
-        dummy = torch.randn(1, in_ch, self.tile_dim, device=self.device)
+        if hasattr(target, "backbone") and hasattr(target.backbone, "conv_in"):
+            # CNN model (ActorCriticNetwork / QNetwork)
+            in_ch = target.backbone.conv_in.in_channels
+            dummy = torch.randn(1, in_ch, self.tile_dim, device=self.device)
+        elif hasattr(self.encoder, "PACKED_SIZE"):
+            # Packed sequence encoder (TransformerActorCritic etc.)
+            dummy = torch.zeros(1, self.encoder.PACKED_SIZE, device=self.device)
+        else:
+            self._compiled_warmup = True
+            return
         with torch.no_grad():
             self.model(dummy)
             self.baseline_model(dummy)
