@@ -77,6 +77,7 @@ def main():
             gamma=cfg.gamma,
             batch_size=cfg.batch_size,
             lr=cfg.lr,
+            lr_min=cfg.lr_min,
             weight_decay=cfg.weight_decay,
             value_coef=cfg.value_coef,
             model_config=cfg.model.model_dump(),
@@ -92,6 +93,9 @@ def main():
             num_ray_workers=cfg.num_ray_workers,
             num_envs_per_worker=cfg.num_envs_per_worker,
             num_steps=cfg.num_steps,
+            train_epochs=cfg.train_epochs,
+            worker_device=cfg.worker_device,
+            gpu_per_worker=cfg.gpu_per_worker,
         )
         trainer.train(cfg.output)
         return

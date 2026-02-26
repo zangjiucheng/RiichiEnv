@@ -15,7 +15,7 @@ class ActorCriticNetwork(nn.Module):
     """
     def __init__(self, in_channels: int = 74, num_actions: int = 82,
                  conv_channels: int = 128, num_blocks: int = 8, fc_dim: int = 256,
-                 tile_dim: int = 34, aux_dims: int | None = None):
+                 tile_dim: int = 34, aux_dims: int | None = None, **kwargs):
         super().__init__()
         self.backbone = ResNetBackbone(in_channels, conv_channels, num_blocks, fc_dim, tile_dim)
         self.actor_head = nn.Linear(fc_dim, num_actions)

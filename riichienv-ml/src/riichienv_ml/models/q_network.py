@@ -15,7 +15,7 @@ class QNetwork(nn.Module):
     """
     def __init__(self, in_channels: int = 74, num_actions: int = 82,
                  conv_channels: int = 64, num_blocks: int = 3, fc_dim: int = 256,
-                 tile_dim: int = 34, aux_dims: int | None = None):
+                 tile_dim: int = 34, aux_dims: int | None = None, **kwargs):
         super().__init__()
         self.backbone = ResNetBackbone(in_channels, conv_channels, num_blocks, fc_dim, tile_dim)
         # Dueling DQN: separate value and advantage streams

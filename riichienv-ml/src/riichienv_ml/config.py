@@ -4,7 +4,7 @@ import importlib
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 GAME_PARAMS = {
@@ -70,6 +70,8 @@ class GameConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     in_channels: int = 74
     num_blocks: int = 8
     conv_channels: int = 128
@@ -136,12 +138,17 @@ class OfflineTrainConfig(WandbConfig):
 class BcConfig(OfflineTrainConfig):
     # Online teacher BC (vs offline logs BC)
     online: bool = False
+    # LR scheduler
+    lr_min: float = 1e-5
     # Online teacher settings (used when online=True)
     teacher_model_name: Literal["kanachan", "mortal"] = "kanachan"     # model type ("kanachan", "mortal"...)
     teacher_model_path: str | None = None
     num_ray_workers: int = 4
     num_envs_per_worker: int = 16
     num_steps: int = 500
+    train_epochs: int = 3                   # epochs per collection round
+    worker_device: Literal["cpu", "cuda"] = "cpu"
+    gpu_per_worker: float = 0.0
 
 
 class CqlConfig(OfflineTrainConfig):

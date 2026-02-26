@@ -35,7 +35,7 @@ class RewardPredictor:
             input_dim = n_players * 4 + 4
 
         self.model: RankPredictor = RankPredictor(input_dim, n_players)
-        self.model.load_state_dict(torch.load(model_path))
+        self.model.load_state_dict(torch.load(model_path, map_location=device))
         self.model = self.model.to(torch.device(device))
         self.model = self.model.eval()
 
