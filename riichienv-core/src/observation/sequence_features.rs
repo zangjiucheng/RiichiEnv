@@ -188,6 +188,126 @@ fn relative_from(actor: u8, target: u8) -> u8 {
     ((target as i8 - actor as i8 + 3) % 4) as u8
 }
 
+/// Parse "consumed" array from MJAI event JSON → Vec<u8> of tile IDs.
+fn parse_consumed_tids_from_value(v: &serde_json::Value) -> Vec<u8> {
+    let mut tids = Vec::new();
+    if let Some(arr) = v["consumed"].as_array() {
+        for item in arr {
+            if let Some(s) = item.as_str() {
+                if let Some(tid) = mjai_to_tid(s) {
+                    tids.push(tid);
+                }
+            }
+        }
+    }
+    tids
+}
+
+/// Process a single MJAI event for the progression cache.
+///
+/// Called incrementally from GameState::_push_mjai_event to avoid
+/// O(N²) JSON re-parsing in encode_seq_progression.
+///
+/// `pending_reach_actor` is mutable state tracking who declared reach.
+pub fn process_single_event_progression(
+    event: &serde_json::Value,
+    pending_reach_actor: &mut Option<u8>,
+) -> Option<[u16; 5]> {
+    let event_type = event["type"].as_str()?;
+
+    match event_type {
+        "start_kyoku" => Some([4, 0, 2, 2, 4]),
+        "reach" => {
+            if let Some(actor) = event["actor"].as_u64() {
+                *pending_reach_actor = Some(actor as u8);
+            }
+            None
+        }
+        "dahai" => {
+            let actor = event["actor"].as_u64().unwrap_or(0) as u8;
+            let pai = event["pai"].as_str().unwrap_or("?");
+            if pai == "?" {
+                return None;
+            }
+            let k37 = mjai_tile_to_kan37(pai)?;
+            let type_idx = 1 + k37 as u16;
+            let moqie = if event["tsumogiri"].as_bool().unwrap_or(false) { 1 } else { 0 };
+            let liqi = if *pending_reach_actor == Some(actor) {
+                *pending_reach_actor = None;
+                1
+            } else {
+                0
+            };
+            Some([actor as u16, type_idx, moqie, liqi, 4])
+        }
+        "chi" => {
+            let actor = event["actor"].as_u64().unwrap_or(0) as u8;
+            let target = event["target"].as_u64().unwrap_or(0) as u8;
+            let pai = event["pai"].as_str().unwrap_or("?");
+            if pai == "?" {
+                return None;
+            }
+            let called_tid = mjai_to_tid(pai)?;
+            let consumed = parse_consumed_tids_from_value(event);
+            if consumed.len() < 2 {
+                return None;
+            }
+            let type_idx = 38 + encode_chi(&consumed, called_tid);
+            let rel = relative_from(actor, target);
+            Some([actor as u16, type_idx, 2, 2, rel as u16])
+        }
+        "pon" => {
+            let actor = event["actor"].as_u64().unwrap_or(0) as u8;
+            let target = event["target"].as_u64().unwrap_or(0) as u8;
+            let pai = event["pai"].as_str().unwrap_or("?");
+            if pai == "?" {
+                return None;
+            }
+            let called_tid = mjai_to_tid(pai)?;
+            let consumed = parse_consumed_tids_from_value(event);
+            if consumed.len() < 2 {
+                return None;
+            }
+            let type_idx = 128 + encode_pon(&consumed, called_tid);
+            let rel = relative_from(actor, target);
+            Some([actor as u16, type_idx, 2, 2, rel as u16])
+        }
+        "daiminkan" => {
+            let actor = event["actor"].as_u64().unwrap_or(0) as u8;
+            let target = event["target"].as_u64().unwrap_or(0) as u8;
+            let pai = event["pai"].as_str().unwrap_or("?");
+            if pai == "?" {
+                return None;
+            }
+            let k37 = mjai_tile_to_kan37(pai)?;
+            let type_idx = 168 + k37 as u16;
+            let rel = relative_from(actor, target);
+            Some([actor as u16, type_idx, 2, 2, rel as u16])
+        }
+        "ankan" => {
+            let actor = event["actor"].as_u64().unwrap_or(0) as u8;
+            let consumed = parse_consumed_tids_from_value(event);
+            if consumed.is_empty() {
+                return None;
+            }
+            let tile34 = consumed[0] / 4;
+            let type_idx = 205 + tile34 as u16;
+            Some([actor as u16, type_idx, 2, 2, 4])
+        }
+        "kakan" => {
+            let actor = event["actor"].as_u64().unwrap_or(0) as u8;
+            let pai = event["pai"].as_str().unwrap_or("?");
+            if pai == "?" {
+                return None;
+            }
+            let k37 = mjai_tile_to_kan37(pai)?;
+            let type_idx = 239 + k37 as u16;
+            Some([actor as u16, type_idx, 2, 2, 4])
+        }
+        _ => None,
+    }
+}
+
 // ── Sparse features ──────────────────────────────────────────────────────────
 
 impl Observation {
@@ -377,6 +497,12 @@ impl Observation {
     /// - liqi: 0=no riichi, 1=with riichi, 2=N/A
     /// - from: 0-2 (relative seat), 4=N/A
     pub fn encode_seq_progression(&self) -> Vec<[u16; 5]> {
+        // Fast path: use pre-computed progression from GameState
+        if let Some(ref cached) = self.cached_progression {
+            return cached.clone();
+        }
+
+        // Fallback: parse events from JSON (for deserialized Observations, replays, etc.)
         let mut prog: Vec<[u16; 5]> = Vec::with_capacity(128);
         let mut pending_reach_actor: Option<u8> = None;
 

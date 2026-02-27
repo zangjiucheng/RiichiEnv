@@ -80,6 +80,7 @@ def main():
             lr_min=cfg.lr_min,
             weight_decay=cfg.weight_decay,
             value_coef=cfg.value_coef,
+            max_grad_norm=cfg.max_grad_norm,
             model_config=cfg.model.model_dump(),
             model_class=cfg.model_class,
             encoder_class=cfg.encoder_class,

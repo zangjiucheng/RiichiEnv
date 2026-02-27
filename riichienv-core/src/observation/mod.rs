@@ -32,6 +32,11 @@ pub struct Observation {
 
     pub(crate) events: Vec<String>,
 
+    /// Pre-computed progression tuples (set by GameState for O(1) access).
+    /// When Some, encode_seq_progression() returns this directly.
+    #[serde(skip)]
+    pub(crate) cached_progression: Option<Vec<[u16; 5]>>,
+
     pub honba: u8,
     pub riichi_sticks: u32,
     pub round_wind: u8,
@@ -83,6 +88,7 @@ impl Observation {
             riichi_declared,
             _legal_actions: legal_actions,
             events,
+            cached_progression: None,
             honba,
             riichi_sticks,
             round_wind,

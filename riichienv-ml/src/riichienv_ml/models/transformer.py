@@ -33,6 +33,8 @@ class TransformerActorCritic(nn.Module):
         dim_feedforward: int = 1536,
         dropout: float = 0.1,
         num_actions: int = 82,
+        # Policy head type: "cls" (V2) or "cross_attn" (V3)
+        policy_head_type: str = "cross_attn",
         # Embedding sub-dimensions (asymmetric)
         d_sub: int | None = None,   # V1 compat: if set, d_type=d_other=d_sub
         d_type: int = 96,           # type field embedding dim
@@ -50,6 +52,7 @@ class TransformerActorCritic(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.num_actions = num_actions
+        self.policy_head_type = policy_head_type
 
         # V1 backward compat: uniform d_sub overrides asymmetric dims
         if d_sub is not None:
@@ -117,6 +120,12 @@ class TransformerActorCritic(nn.Module):
             enable_nested_tensor=False,
         )
         self.final_norm = nn.LayerNorm(d_model)
+
+        # --- Cross-attention for policy head (V3) ---
+        if self.policy_head_type == "cross_attn":
+            self.cand_cross_attn = nn.MultiheadAttention(
+                d_model, nhead, dropout=dropout, batch_first=True)
+            self.cross_attn_norm = nn.LayerNorm(d_model)
 
         # --- Output heads ---
         self.policy_head = nn.Sequential(
@@ -220,9 +229,24 @@ class TransformerActorCritic(nn.Module):
         output = self.transformer(tokens, src_key_padding_mask=pad_mask)
         output = self.final_norm(output)
 
-        # CLS output → policy + value
+        # CLS output → value (always from CLS)
         cls_out = output[:, 0]
-        logits = self.policy_head(cls_out)
         value = self.value_head(cls_out)
+
+        # Policy head
+        if self.policy_head_type == "cross_attn":
+            # Cross-attention: CLS queries candidate token outputs
+            cand_offset = 1 + self._S + 1 + self._P  # CLS + sparse + numeric + prog
+            cand_out = output[:, cand_offset:cand_offset + self._C]  # (B, C, d_model)
+            cls_q = cls_out.unsqueeze(1)  # (B, 1, d_model)
+            cand_attn_mask = ~cand_mask   # True = padding (PyTorch convention)
+            attn_out, _ = self.cand_cross_attn(
+                cls_q, cand_out, cand_out,
+                key_padding_mask=cand_attn_mask)  # (B, 1, d_model)
+            policy_input = self.cross_attn_norm(cls_out + attn_out.squeeze(1))
+        else:
+            policy_input = cls_out
+
+        logits = self.policy_head(policy_input)
 
         return logits, value.squeeze(-1)

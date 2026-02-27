@@ -61,7 +61,15 @@ pub struct GameState {
 
     pub mjai_log: Vec<String>,
     pub player_event_counts: [usize; NP],
+    pub kyoku_start_event_counts: [usize; NP],
     pub mjai_log_per_player: [Vec<String>; NP],
+
+    /// Pre-computed progression tuples for the current round (shared by all players).
+    /// Incrementally updated in _push_mjai_event to avoid O(N²) JSON re-parsing.
+    #[cfg(feature = "python")]
+    pub round_seq_progression: Vec<[u16; 5]>,
+    #[cfg(feature = "python")]
+    pub round_seq_prog_pending_reach: Option<u8>,
 
     pub mode: GameModeConfig,
     pub game_mode: u8,
@@ -121,7 +129,12 @@ impl GameState {
             round_end_scores: None,
             mjai_log: Vec::new(),
             player_event_counts: [0; NP],
+            kyoku_start_event_counts: [0; NP],
             mjai_log_per_player: Default::default(),
+            #[cfg(feature = "python")]
+            round_seq_progression: Vec::new(),
+            #[cfg(feature = "python")]
+            round_seq_prog_pending_reach: None,
             mode,
             game_mode,
             skip_mjai_logging,
@@ -148,6 +161,12 @@ impl GameState {
         self.mjai_log = Vec::new();
         self.mjai_log_per_player = Default::default();
         self.player_event_counts = [0; NP];
+        self.kyoku_start_event_counts = [0; NP];
+        #[cfg(feature = "python")]
+        {
+            self.round_seq_progression.clear();
+            self.round_seq_prog_pending_reach = None;
+        }
 
         if !self.skip_mjai_logging {
             let mut ev = serde_json::Map::new();
@@ -177,6 +196,7 @@ impl GameState {
             Vec::new()
         };
 
+        // Return incremental delta events (for new_events property, debugging, etc.)
         let old_count = self.player_event_counts[pid];
         let full_log_len = self.mjai_log_per_player[pid].len();
         let new_events = if old_count < full_log_len {
@@ -198,7 +218,7 @@ impl GameState {
         let scores: [i32; 4] = std::array::from_fn(|i| self.players[i].score);
         let riichi_declared: [bool; 4] = std::array::from_fn(|i| self.players[i].riichi_declared);
 
-        Observation::new(
+        let mut obs = Observation::new(
             player_id,
             masked_hands,
             melds,
@@ -218,7 +238,15 @@ impl GameState {
             self.riichi_sutehais,
             self.last_tedashis,
             self.last_discard.map(|(tile, _pid)| tile as u32),
-        )
+        );
+
+        // Attach pre-computed progression (full round history, O(1) clone).
+        #[cfg(feature = "python")]
+        {
+            obs.cached_progression = Some(self.round_seq_progression.clone());
+        }
+
+        obs
     }
 
     pub fn get_observation_for_replay(
@@ -1709,6 +1737,18 @@ impl GameState {
             p.hand.sort();
         }
 
+        // Record kyoku start offsets so get_observation() can return
+        // the full round history (not just incremental deltas).
+        for i in 0..NP {
+            self.kyoku_start_event_counts[i] = self.mjai_log_per_player[i].len();
+        }
+        // Reset pre-computed progression cache for the new round.
+        #[cfg(feature = "python")]
+        {
+            self.round_seq_progression.clear();
+            self.round_seq_prog_pending_reach = None;
+        }
+
         if !self.skip_mjai_logging {
             let wind_str = match round_wind % 4 {
                 0 => "E",
@@ -2046,6 +2086,18 @@ impl GameState {
 
             if should_push {
                 self.mjai_log_per_player[pid].push(final_json);
+            }
+        }
+
+        // Incrementally update pre-computed progression cache.
+        // Uses the original (unmasked) event Value directly — no JSON parsing.
+        #[cfg(feature = "python")]
+        {
+            if let Some(entry) = crate::observation::sequence_features::process_single_event_progression(
+                &event,
+                &mut self.round_seq_prog_pending_reach,
+            ) {
+                self.round_seq_progression.push(entry);
             }
         }
     }

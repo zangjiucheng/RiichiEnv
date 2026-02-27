@@ -37,6 +37,7 @@ class BCModelTrainer:
         lr_min: float = 1e-5,
         weight_decay: float = 0.1,
         value_coef: float = 0.5,
+        max_grad_norm: float = 10.0,
         model_config: dict | None = None,
         model_class: str = "riichienv_ml.models.actor_critic.ActorCriticNetwork",
         encoder_class: str = "riichienv_ml.features.feat_v1.ObservationEncoder",
@@ -66,6 +67,7 @@ class BCModelTrainer:
         self.lr_min = lr_min
         self.weight_decay = weight_decay
         self.value_coef = value_coef
+        self.max_grad_norm = max_grad_norm
         self.model_config = model_config or {}
         self.model_class = model_class
         self.encoder_class = encoder_class
@@ -308,7 +310,7 @@ class BCModelTrainer:
 
                     optimizer.zero_grad()
                     loss.backward()
-                    clip_grad_norm_(model.parameters(), 10.0)
+                    clip_grad_norm_(model.parameters(), self.max_grad_norm)
                     optimizer.step()
                     scheduler.step()
 
