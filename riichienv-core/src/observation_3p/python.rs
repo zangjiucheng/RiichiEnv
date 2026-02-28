@@ -7,7 +7,7 @@ use crate::shanten;
 use crate::types::{Meld, MeldType};
 use crate::yaku_checker;
 
-use super::helpers::get_next_tile_sanma;
+use super::helpers::{get_next_tile_sanma, tile34_to_compact, TILE_DIM_3P};
 use super::Observation3P;
 
 const NP: usize = 3;
@@ -280,7 +280,7 @@ impl Observation3P {
         decay_rate: Option<f32>,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
         let decay_rate = decay_rate.unwrap_or(0.2);
-        let mut arr = Array2::<f32>::zeros((NP, 34));
+        let mut arr = Array2::<f32>::zeros((NP, TILE_DIM_3P));
 
         for player_idx in 0..NP {
             let discs = &self.discards[player_idx];
@@ -291,11 +291,11 @@ impl Observation3P {
             }
 
             for (turn, &tile) in discs.iter().enumerate() {
-                let tile_idx = (tile as usize) / 4;
-                if tile_idx < 34 {
+                let tile34 = (tile as usize) / 4;
+                if let Some(idx) = tile34_to_compact(tile34) {
                     let age = (max_len - 1 - turn) as f32;
                     let weight = (-decay_rate * age).exp();
-                    arr[[player_idx, tile_idx]] += weight;
+                    arr[[player_idx, idx]] += weight;
                 }
             }
         }
@@ -480,20 +480,20 @@ impl Observation3P {
 
     pub fn encode<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
         let num_channels = 74;
-        let mut arr = Array2::<f32>::zeros((num_channels, 34));
+        let mut arr = Array2::<f32>::zeros((num_channels, TILE_DIM_3P));
 
         // 1. Hand (0-3), 2. Red (4)
-        let mut counts = [0u8; 34];
+        let mut counts = [0u8; TILE_DIM_3P];
         for &t in &self.hands[self.player_id as usize] {
-            let idx = (t as usize) / 4;
-            if idx < 34 {
+            let idx34 = (t as usize) / 4;
+            if let Some(idx) = tile34_to_compact(idx34) {
                 counts[idx] += 1;
                 if t == 16 || t == 52 || t == 88 {
                     arr[[4, idx]] = 1.0;
                 }
             }
         }
-        for i in 0..34 {
+        for i in 0..TILE_DIM_3P {
             let c = counts[i];
             if c >= 1 {
                 arr[[0, i]] = 1.0;
@@ -515,8 +515,8 @@ impl Observation3P {
                 break;
             }
             for &t in &meld.tiles {
-                let idx = (t as usize) / 4;
-                if idx < 34 {
+                let idx34 = (t as usize) / 4;
+                if let Some(idx) = tile34_to_compact(idx34) {
                     arr[[5 + m_idx, idx]] = 1.0;
                 }
             }
@@ -524,8 +524,8 @@ impl Observation3P {
 
         // 4. Dora Indicators (9)
         for &t in &self.dora_indicators {
-            let idx = (t as usize) / 4;
-            if idx < 34 {
+            let idx34 = (t as usize) / 4;
+            if let Some(idx) = tile34_to_compact(idx34) {
                 arr[[9, idx]] = 1.0;
             }
         }
@@ -533,8 +533,8 @@ impl Observation3P {
         // 5. Discards (Self) (10-13)
         let discs = &self.discards[self.player_id as usize];
         for (i, &t) in discs.iter().rev().take(4).enumerate() {
-            let idx = (t as usize) / 4;
-            if idx < 34 {
+            let idx34 = (t as usize) / 4;
+            if let Some(idx) = tile34_to_compact(idx34) {
                 arr[[10 + i, idx]] = 1.0;
             }
         }
@@ -544,8 +544,8 @@ impl Observation3P {
             let opp_id = (self.player_id as usize + i) % NP;
             let discs = &self.discards[opp_id];
             for (j, &t) in discs.iter().rev().take(4).enumerate() {
-                let idx = (t as usize) / 4;
-                if idx < 34 {
+                let idx34 = (t as usize) / 4;
+                if let Some(idx) = tile34_to_compact(idx34) {
                     let ch_base = 14 + (i - 1) * 4;
                     arr[[ch_base + j, idx]] = 1.0;
                 }
@@ -555,7 +555,7 @@ impl Observation3P {
         // 7. Discard Counts (26-28 for 3 players)
         for (player_idx, discs) in self.discards.iter().enumerate() {
             let count_norm = (discs.len() as f32) / 24.0;
-            for k in 0..34 {
+            for k in 0..TILE_DIM_3P {
                 arr[[26 + player_idx, k]] = count_norm;
             }
         }
@@ -574,39 +574,40 @@ impl Observation3P {
         tiles_used += self.dora_indicators.len();
         let tiles_left = (TOTAL_TILES as i32 - tiles_used as i32).max(0) as f32;
         let tiles_left_norm = tiles_left / 70.0;
-        for k in 0..34 {
+        for k in 0..TILE_DIM_3P {
             arr[[30, k]] = tiles_left_norm;
         }
 
         // 9. Riichi (31-33: self + 2 opponents)
         if self.riichi_declared[self.player_id as usize] {
-            for i in 0..34 {
+            for i in 0..TILE_DIM_3P {
                 arr[[31, i]] = 1.0;
             }
         }
         for i in 1..NP {
             let opp_id = (self.player_id as usize + i) % NP;
             if self.riichi_declared[opp_id] {
-                for k in 0..34 {
+                for k in 0..TILE_DIM_3P {
                     arr[[32 + (i - 1), k]] = 1.0;
                 }
             }
         }
 
         // 10. Winds (35-36)
+        // tile34=27-30 (winds) → compact=20-23
         let rw = self.round_wind as usize;
-        if 27 + rw < 34 {
-            arr[[35, 27 + rw]] = 1.0;
+        if let Some(compact_wind) = tile34_to_compact(27 + rw) {
+            arr[[35, compact_wind]] = 1.0;
         }
         let seat = (self.player_id + NP as u8 - self.oya) % NP as u8;
-        if 27 + (seat as usize) < 34 {
-            arr[[36, 27 + (seat as usize)]] = 1.0;
+        if let Some(compact_wind) = tile34_to_compact(27 + (seat as usize)) {
+            arr[[36, compact_wind]] = 1.0;
         }
 
         // 11. Honba/Sticks (37-38)
         let honba_norm = (self.honba as f32) / 10.0;
         let sticks_norm = (self.riichi_sticks as f32) / 5.0;
-        for i in 0..34 {
+        for i in 0..TILE_DIM_3P {
             arr[[37, i]] = honba_norm;
             arr[[38, i]] = sticks_norm;
         }
@@ -614,7 +615,7 @@ impl Observation3P {
         // 12. Scores (39-41) normalized 0-100000
         for i in 0..NP {
             let score_norm = (self.scores[i].clamp(0, 100000) as f32) / 100000.0;
-            for k in 0..34 {
+            for k in 0..TILE_DIM_3P {
                 arr[[39 + i, k]] = score_norm;
             }
         }
@@ -622,21 +623,21 @@ impl Observation3P {
         // 13. Scores (43-45) normalized 0-30000
         for i in 0..NP {
             let score_norm = (self.scores[i].clamp(0, 30000) as f32) / 30000.0;
-            for k in 0..34 {
+            for k in 0..TILE_DIM_3P {
                 arr[[43 + i, k]] = score_norm;
             }
         }
 
         // 14. Waits (47)
         for &t in &self.waits {
-            if (t as usize) < 34 {
-                arr[[47, t as usize]] = 1.0;
+            if let Some(idx) = tile34_to_compact(t as usize) {
+                arr[[47, idx]] = 1.0;
             }
         }
 
         // 15. Is Tenpai (48)
         let tenpai_val = if self.is_tenpai { 1.0 } else { 0.0 };
-        for i in 0..34 {
+        for i in 0..TILE_DIM_3P {
             arr[[48, i]] = tenpai_val;
         }
 
@@ -649,21 +650,21 @@ impl Observation3P {
             }
         }
         if rank < NP {
-            for i in 0..34 {
+            for i in 0..TILE_DIM_3P {
                 arr[[49 + rank, i]] = 1.0;
             }
         }
 
         // 17. Kyoku (53)
         let k_norm = (self.kyoku_index as f32) / 8.0;
-        for i in 0..34 {
+        for i in 0..TILE_DIM_3P {
             arr[[53, i]] = k_norm;
         }
 
         // 18. Round Progress (54)
         let round_progress = (self.round_wind as f32) * 4.0 + (self.kyoku_index as f32);
         let round_progress_norm = round_progress / 7.0;
-        for i in 0..34 {
+        for i in 0..TILE_DIM_3P {
             arr[[54, i]] = round_progress_norm;
         }
 
@@ -699,7 +700,7 @@ impl Observation3P {
         }
         for i in 0..NP {
             let dora_norm = (dora_counts[i] as f32) / 12.0;
-            for k in 0..34 {
+            for k in 0..TILE_DIM_3P {
                 arr[[55 + i, k]] = dora_norm;
             }
         }
@@ -707,32 +708,40 @@ impl Observation3P {
         // 20. Melds Count (59-61 for 3 players)
         for (player_idx, melds_list) in self.melds.iter().enumerate() {
             let meld_count_norm = (melds_list.len() as f32) / 4.0;
-            for k in 0..34 {
+            for k in 0..TILE_DIM_3P {
                 arr[[59 + player_idx, k]] = meld_count_norm;
             }
         }
 
         // 21. Tiles Seen (63)
-        let mut seen = [0u8; 34];
+        let mut seen = [0u8; TILE_DIM_3P];
         for &t in &self.hands[self.player_id as usize] {
-            seen[(t as usize) / 4] += 1;
+            if let Some(idx) = tile34_to_compact((t as usize) / 4) {
+                seen[idx] += 1;
+            }
         }
         for mlist in &self.melds {
             for m in mlist {
                 for &t in &m.tiles {
-                    seen[(t as usize) / 4] += 1;
+                    if let Some(idx) = tile34_to_compact((t as usize) / 4) {
+                        seen[idx] += 1;
+                    }
                 }
             }
         }
         for dlist in &self.discards {
             for &t in dlist {
-                seen[(t as usize) / 4] += 1;
+                if let Some(idx) = tile34_to_compact((t as usize) / 4) {
+                    seen[idx] += 1;
+                }
             }
         }
         for &t in &self.dora_indicators {
-            seen[(t as usize) / 4] += 1;
+            if let Some(idx) = tile34_to_compact((t as usize) / 4) {
+                seen[idx] += 1;
+            }
         }
-        for i in 0..34 {
+        for i in 0..TILE_DIM_3P {
             let norm_seen = (seen[i] as f32) / 4.0;
             arr[[63, i]] = norm_seen;
         }
@@ -740,8 +749,8 @@ impl Observation3P {
         // 22-24. Extended Discard History (64-69)
         let discs = &self.discards[self.player_id as usize];
         for (i, &t) in discs.iter().rev().skip(4).take(4).enumerate() {
-            let idx = (t as usize) / 4;
-            if idx < 34 {
+            let idx34 = (t as usize) / 4;
+            if let Some(idx) = tile34_to_compact(idx34) {
                 arr[[64 + i, idx]] = 1.0;
             }
         }
@@ -749,8 +758,8 @@ impl Observation3P {
         let opp1_id = (self.player_id as usize + 1) % NP;
         let discs = &self.discards[opp1_id];
         for (i, &t) in discs.iter().rev().skip(4).take(2).enumerate() {
-            let idx = (t as usize) / 4;
-            if idx < 34 {
+            let idx34 = (t as usize) / 4;
+            if let Some(idx) = tile34_to_compact(idx34) {
                 arr[[68 + i, idx]] = 1.0;
             }
         }
@@ -760,7 +769,7 @@ impl Observation3P {
             if !self.tsumogiri_flags[player_idx].is_empty() {
                 let last_tsumogiri = *self.tsumogiri_flags[player_idx].last().unwrap_or(&false);
                 let val = if last_tsumogiri { 1.0 } else { 0.0 };
-                for k in 0..34 {
+                for k in 0..TILE_DIM_3P {
                     arr[[70 + player_idx, k]] = val;
                 }
             }
@@ -825,37 +834,45 @@ impl Observation3P {
     }
 
     /// Encode kawa (discard pile) overview for all players
-    /// Returns a (3, 7, 34) array: 3 players x 7 channels x 34 tile types
+    /// Returns a (3, 7, 27) array: 3 players x 7 channels x 27 tile types
     #[pyo3(name = "encode_kawa_overview")]
     pub fn encode_kawa_overview<'py>(
         &self,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
-        let mut arr = Array3::<f32>::zeros((NP, 7, 34));
+        let mut arr = Array3::<f32>::zeros((NP, 7, TILE_DIM_3P));
 
         for (player_idx, discards) in self.discards.iter().enumerate() {
-            let mut tile_counts = [0u8; 34];
+            let mut tile_counts = [0u8; TILE_DIM_3P];
             let mut aka_flags = [false; 3];
 
             for &tile in discards {
-                let tile_type = (tile / 4) as usize;
-                if tile_type < 34 {
-                    let count_idx = tile_counts[tile_type].min(3) as usize;
-                    arr[[player_idx, count_idx, tile_type]] = 1.0;
-                    tile_counts[tile_type] = tile_counts[tile_type].saturating_add(1);
+                let tile34 = (tile / 4) as usize;
+                if let Some(idx) = tile34_to_compact(tile34) {
+                    let count_idx = tile_counts[idx].min(3) as usize;
+                    arr[[player_idx, count_idx, idx]] = 1.0;
+                    tile_counts[idx] = tile_counts[idx].saturating_add(1);
                 }
 
                 match tile {
-                    20 => aka_flags[0] = true,
-                    24 => aka_flags[1] = true,
-                    28 => aka_flags[2] = true,
+                    20 => aka_flags[0] = true, // 5mr - dead in sanma (tile34=5 → None)
+                    24 => aka_flags[1] = true, // 5pr
+                    28 => aka_flags[2] = true, // 5sr
                     _ => {}
                 }
             }
 
-            for (i, &has_aka) in aka_flags.iter().enumerate() {
-                if has_aka {
-                    arr[[player_idx, 4 + i, 5 + i * 9]] = 1.0;
+            // aka_flags[0] = 5mr: tile34=4 (5m) → excluded in sanma, skip
+            // aka_flags[1] = 5pr: tile34=13 → compact=6
+            if aka_flags[1] {
+                if let Some(idx) = tile34_to_compact(13) {
+                    arr[[player_idx, 5, idx]] = 1.0;
+                }
+            }
+            // aka_flags[2] = 5sr: tile34=22 → compact=15
+            if aka_flags[2] {
+                if let Some(idx) = tile34_to_compact(22) {
+                    arr[[player_idx, 6, idx]] = 1.0;
                 }
             }
         }
@@ -870,13 +887,13 @@ impl Observation3P {
     }
 
     /// Encode fuuro (meld) overview for all players
-    /// Returns a (3, 4, 5, 34) array: 3 players x 4 melds x 5 channels x 34 tile types
+    /// Returns a (3, 4, 5, 27) array: 3 players x 4 melds x 5 channels x 27 tile types
     #[pyo3(name = "encode_fuuro_overview")]
     pub fn encode_fuuro_overview<'py>(
         &self,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
-        let mut arr = Array4::<f32>::zeros((NP, 4, 5, 34));
+        let mut arr = Array4::<f32>::zeros((NP, 4, 5, TILE_DIM_3P));
 
         for (player_idx, melds) in self.melds.iter().enumerate() {
             for (meld_idx, meld) in melds.iter().enumerate() {
@@ -889,14 +906,16 @@ impl Observation3P {
                         break;
                     }
 
-                    let tile_type = (tile / 4) as usize;
-                    if tile_type < 34 {
-                        arr[[player_idx, meld_idx, tile_slot_idx, tile_type]] = 1.0;
+                    let tile34 = (tile / 4) as usize;
+                    if let Some(idx) = tile34_to_compact(tile34) {
+                        arr[[player_idx, meld_idx, tile_slot_idx, idx]] = 1.0;
                     }
 
                     let is_aka = matches!(tile, 16 | 52 | 88);
                     if is_aka {
-                        arr[[player_idx, meld_idx, 4, tile_type]] = 1.0;
+                        if let Some(idx) = tile34_to_compact((tile / 4) as usize) {
+                            arr[[player_idx, meld_idx, 4, idx]] = 1.0;
+                        }
                     }
                 }
             }
@@ -912,21 +931,21 @@ impl Observation3P {
     }
 
     /// Encode ankan (concealed kan) overview for all players
-    /// Returns a (3, 34) array: 3 players x 34 tile types
+    /// Returns a (3, 27) array: 3 players x 27 tile types
     #[pyo3(name = "encode_ankan_overview")]
     pub fn encode_ankan_overview<'py>(
         &self,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
-        let mut arr = Array2::<f32>::zeros((NP, 34));
+        let mut arr = Array2::<f32>::zeros((NP, TILE_DIM_3P));
 
         for (player_idx, melds) in self.melds.iter().enumerate() {
             for meld in melds {
                 if matches!(meld.meld_type, MeldType::Ankan) {
                     if let Some(&tile) = meld.tiles.first() {
-                        let tile_type = (tile / 4) as usize;
-                        if tile_type < 34 {
-                            arr[[player_idx, tile_type]] = 1.0;
+                        let tile34 = (tile / 4) as usize;
+                        if let Some(idx) = tile34_to_compact(tile34) {
+                            arr[[player_idx, idx]] = 1.0;
                         }
                     }
                 }
@@ -1015,8 +1034,10 @@ impl Observation3P {
             }
 
             if let Some(tile) = self.riichi_sutehais[player_id] {
-                let tile_type = (tile / 4) as usize;
-                arr[[opponent_idx, 0]] = tile_type as f32 / 33.0;
+                let tile34 = (tile / 4) as usize;
+                if let Some(compact) = tile34_to_compact(tile34) {
+                    arr[[opponent_idx, 0]] = compact as f32 / 26.0;
+                }
                 let is_aka = matches!(tile, 16 | 52 | 88);
                 arr[[opponent_idx, 1]] = if is_aka { 1.0 } else { 0.0 };
                 let is_dora = dora_tiles.contains(&tile);
@@ -1057,8 +1078,10 @@ impl Observation3P {
             }
 
             if let Some(tile) = self.last_tedashis[player_id] {
-                let tile_type = (tile / 4) as usize;
-                arr[[opponent_idx, 0]] = tile_type as f32 / 33.0;
+                let tile34 = (tile / 4) as usize;
+                if let Some(compact) = tile34_to_compact(tile34) {
+                    arr[[opponent_idx, 0]] = compact as f32 / 26.0;
+                }
                 let is_aka = matches!(tile, 16 | 52 | 88);
                 arr[[opponent_idx, 1]] = if is_aka { 1.0 } else { 0.0 };
                 let is_dora = dora_tiles.contains(&tile);
@@ -1087,8 +1110,10 @@ impl Observation3P {
         let mut arr = Array1::<f32>::zeros(3);
 
         if let Some(tile) = self.last_discard {
-            let tile_type = (tile / 4) as usize;
-            arr[0] = tile_type as f32 / 33.0;
+            let tile34 = (tile / 4) as usize;
+            if let Some(compact) = tile34_to_compact(tile34) {
+                arr[0] = compact as f32 / 26.0;
+            }
             let is_aka = matches!(tile, 16 | 52 | 88);
             arr[1] = if is_aka { 1.0 } else { 0.0 };
             let dora_tiles: Vec<u8> = self
@@ -1174,7 +1199,7 @@ impl Observation3P {
         &self,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
-        let total = 215 * 34;
+        let total = 215 * TILE_DIM_3P;
         let mut buf = vec![0.0f32; total];
 
         self.encode_base_into(&mut buf, 0);

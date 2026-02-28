@@ -1382,4 +1382,72 @@ impl Observation {
         let byte_slice = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, byte_len) };
         Ok(pyo3::types::PyBytes::new(py, byte_slice))
     }
+
+    // ── Sequence features (transformer) ─────────────────────────────────
+
+    /// Encode sparse features as variable-length u16 indices.
+    ///
+    /// Returns raw bytes of a `&[u16]` slice (variable length, max 25 elements).
+    /// Python side: `np.frombuffer(bytes, dtype=np.uint16)`.
+    #[pyo3(name = "encode_seq_sparse", signature = (game_style=1))]
+    pub fn encode_seq_sparse_py<'py>(
+        &self,
+        py: Python<'py>,
+        game_style: u8,
+    ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        let tokens = self.encode_seq_sparse(game_style);
+        let byte_len = tokens.len() * std::mem::size_of::<u16>();
+        let byte_slice =
+            unsafe { std::slice::from_raw_parts(tokens.as_ptr() as *const u8, byte_len) };
+        Ok(pyo3::types::PyBytes::new(py, byte_slice))
+    }
+
+    /// Encode numeric features as 12 × f32.
+    ///
+    /// Returns raw bytes of `[f32; 12]`.
+    /// Python side: `np.frombuffer(bytes, dtype=np.float32)`.
+    #[pyo3(name = "encode_seq_numeric")]
+    pub fn encode_seq_numeric_py<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        let arr = self.encode_seq_numeric();
+        let byte_len = arr.len() * std::mem::size_of::<f32>();
+        let byte_slice = unsafe { std::slice::from_raw_parts(arr.as_ptr() as *const u8, byte_len) };
+        Ok(pyo3::types::PyBytes::new(py, byte_slice))
+    }
+
+    /// Encode progression (action history) as N × 5 u16 tuples.
+    ///
+    /// Returns raw bytes of flattened row-major `&[[u16; 5]]`.
+    /// Python side: `np.frombuffer(bytes, dtype=np.uint16).reshape(-1, 5)`.
+    #[pyo3(name = "encode_seq_progression")]
+    pub fn encode_seq_progression_py<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        let prog = self.encode_seq_progression();
+        // [u16; 5] is contiguous in memory; treat the slice as a flat u8 buffer directly.
+        let byte_len = prog.len() * std::mem::size_of::<[u16; 5]>();
+        let byte_slice =
+            unsafe { std::slice::from_raw_parts(prog.as_ptr() as *const u8, byte_len) };
+        Ok(pyo3::types::PyBytes::new(py, byte_slice))
+    }
+
+    /// Encode candidate (legal action) features as M × 4 u16 tuples.
+    ///
+    /// Returns raw bytes of flattened row-major `&[[u16; 4]]`.
+    /// Python side: `np.frombuffer(bytes, dtype=np.uint16).reshape(-1, 4)`.
+    #[pyo3(name = "encode_seq_candidates")]
+    pub fn encode_seq_candidates_py<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        let cands = self.encode_seq_candidates();
+        // [u16; 4] is contiguous in memory; treat the slice as a flat u8 buffer directly.
+        let byte_len = cands.len() * std::mem::size_of::<[u16; 4]>();
+        let byte_slice =
+            unsafe { std::slice::from_raw_parts(cands.as_ptr() as *const u8, byte_len) };
+        Ok(pyo3::types::PyBytes::new(py, byte_slice))
+    }
 }

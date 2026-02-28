@@ -1,4 +1,4 @@
-from . import convert
+from . import consts, convert
 from ._riichienv import (  # type: ignore
     GameRule,
     HandEvaluator3P,
@@ -35,6 +35,7 @@ NORTH = Wind.North
 
 
 __all__ = [
+    "consts",
     "convert",
     "WinResultContext",
     "Kyoku",

@@ -1,6 +1,0 @@
-*.pth
-checkpoints/
-wandb/
-__pycache__/
-.venv/
-**/*.egg-info

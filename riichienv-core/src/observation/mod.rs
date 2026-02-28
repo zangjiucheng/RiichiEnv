@@ -4,6 +4,8 @@ mod encode;
 pub(crate) mod helpers;
 #[cfg(feature = "python")]
 mod python;
+#[cfg(feature = "python")]
+pub(crate) mod sequence_features;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -29,6 +31,11 @@ pub struct Observation {
     pub(crate) _legal_actions: Vec<Action>,
 
     pub(crate) events: Vec<String>,
+
+    /// Pre-computed progression tuples (set by GameState for O(1) access).
+    /// When Some, encode_seq_progression() returns this directly.
+    #[serde(skip)]
+    pub(crate) cached_progression: Option<Vec<[u16; 5]>>,
 
     pub honba: u8,
     pub riichi_sticks: u32,
@@ -81,6 +88,7 @@ impl Observation {
             riichi_declared,
             _legal_actions: legal_actions,
             events,
+            cached_progression: None,
             honba,
             riichi_sticks,
             round_wind,

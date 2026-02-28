@@ -246,6 +246,37 @@ impl GameStateEventHandler for GameState {
                     false
                 };
 
+                // Update progression cache (replay mode).
+                #[cfg(feature = "python")]
+                if self.enable_seq_caching {
+                    use crate::observation::sequence_features::process_single_event_progression;
+                    use crate::parser::tid_to_mjai;
+                    use std::sync::Arc;
+
+                    if *is_liqi || *is_wliqi {
+                        let ev = serde_json::json!({"type": "reach", "actor": s});
+                        if let Some(entry) = process_single_event_progression(
+                            &ev,
+                            &mut self.round_seq_prog_pending_reach,
+                        ) {
+                            Arc::make_mut(&mut self.round_seq_progression).push(entry);
+                        }
+                    }
+                    let pai = tid_to_mjai(t);
+                    let ev = serde_json::json!({
+                        "type": "dahai",
+                        "actor": s,
+                        "pai": pai,
+                        "tsumogiri": is_tsumogiri,
+                    });
+                    if let Some(entry) = process_single_event_progression(
+                        &ev,
+                        &mut self.round_seq_prog_pending_reach,
+                    ) {
+                        Arc::make_mut(&mut self.round_seq_progression).push(entry);
+                    }
+                }
+
                 if let Some(idx) = self.players[s].hand.iter().position(|&x| x == t) {
                     self.players[s].hand.remove(idx);
                 }
@@ -306,6 +337,51 @@ impl GameStateEventHandler for GameState {
                 tiles,
                 froms,
             } => {
+                // Update progression cache (replay mode).
+                #[cfg(feature = "python")]
+                if self.enable_seq_caching {
+                    use crate::observation::sequence_features::process_single_event_progression;
+                    use crate::parser::tid_to_mjai;
+                    use std::sync::Arc;
+
+                    let mtype_str = match meld_type {
+                        MeldType::Chi => "chi",
+                        MeldType::Pon => "pon",
+                        MeldType::Daiminkan => "daiminkan",
+                        _ => "",
+                    };
+                    if !mtype_str.is_empty() {
+                        let target = froms.iter().find(|&&f| f != *seat).copied().unwrap_or(0);
+                        let called_tile: Option<u8> = tiles
+                            .iter()
+                            .zip(froms.iter())
+                            .find(|(_, &f)| f != *seat)
+                            .map(|(&t, _)| t);
+                        let consumed_tiles: Vec<u8> = tiles
+                            .iter()
+                            .zip(froms.iter())
+                            .filter(|(_, &f)| f == *seat)
+                            .map(|(&t, _)| t)
+                            .collect();
+                        let pai_str = called_tile.map(tid_to_mjai).unwrap_or_default();
+                        let consumed_strs: Vec<String> =
+                            consumed_tiles.iter().map(|&t| tid_to_mjai(t)).collect();
+                        let ev = serde_json::json!({
+                            "type": mtype_str,
+                            "actor": *seat,
+                            "target": target,
+                            "pai": pai_str,
+                            "consumed": consumed_strs,
+                        });
+                        if let Some(entry) = process_single_event_progression(
+                            &ev,
+                            &mut self.round_seq_prog_pending_reach,
+                        ) {
+                            Arc::make_mut(&mut self.round_seq_progression).push(entry);
+                        }
+                    }
+                }
+
                 // Finalize pending riichi deposit (discard was claimed, not ronned)
                 if let Some(rp) = self.riichi_pending_acceptance.take() {
                     self.players[rp as usize].score -= 1000;
@@ -390,6 +466,41 @@ impl GameStateEventHandler for GameState {
                 tiles,
                 ..
             } => {
+                // Update progression cache (replay mode).
+                #[cfg(feature = "python")]
+                if self.enable_seq_caching {
+                    use crate::observation::sequence_features::process_single_event_progression;
+                    use crate::parser::tid_to_mjai;
+                    use std::sync::Arc;
+
+                    let ev = if *meld_type == MeldType::Ankan {
+                        let t_val = tiles[0] / 4;
+                        let consumed_tids =
+                            [t_val * 4, t_val * 4 + 1, t_val * 4 + 2, t_val * 4 + 3];
+                        let consumed_strs: Vec<String> =
+                            consumed_tids.iter().map(|&t| tid_to_mjai(t)).collect();
+                        serde_json::json!({
+                            "type": "ankan",
+                            "actor": *seat,
+                            "consumed": consumed_strs,
+                        })
+                    } else {
+                        // Kakan
+                        let pai_str = tid_to_mjai(tiles[0]);
+                        serde_json::json!({
+                            "type": "kakan",
+                            "actor": *seat,
+                            "pai": pai_str,
+                        })
+                    };
+                    if let Some(entry) = process_single_event_progression(
+                        &ev,
+                        &mut self.round_seq_prog_pending_reach,
+                    ) {
+                        Arc::make_mut(&mut self.round_seq_progression).push(entry);
+                    }
+                }
+
                 if *meld_type == MeldType::Ankan {
                     let t_val = tiles[0] / 4;
                     for _ in 0..4 {
