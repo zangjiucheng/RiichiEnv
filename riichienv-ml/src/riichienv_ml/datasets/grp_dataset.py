@@ -1,4 +1,5 @@
 import glob
+import os
 import random
 
 import numpy as np
@@ -9,7 +10,7 @@ from riichienv_ml.datasets.mjai_logs import GrpFeatureEncoder, _compute_rank, lo
 
 
 class GrpReplayDataset(IterableDataset):
-    """GRP dataset that reads .jsonl.gz replay files via MjaiReplay.
+    """GRP dataset that reads .jsonl replay files via MjaiReplay.
 
     For each kyoku in each replay, extracts GRP features and predicts
     the final hanchan ranking for each player. Yields (features_tensor, rank_one_hot).
@@ -67,8 +68,16 @@ class GrpReplayDataset(IterableDataset):
 
         # Shard files across DataLoader workers
         worker_info = torch.utils.data.get_worker_info()
+        worker_label = "main"
         if worker_info is not None:
             files = files[worker_info.id::worker_info.num_workers]
+            worker_label = str(worker_info.id)
+
+        try:
+            max_error_logs = int(os.getenv("RIICHIENV_ML_MAX_ERROR_LOGS", "20"))
+        except ValueError:
+            max_error_logs = 20
+        error_count = 0
 
         buffer = []
         for file_path in files:
@@ -93,7 +102,12 @@ class GrpReplayDataset(IterableDataset):
                         y = self._encode_label(final_scores, player_idx)
                         buffer.append((x, y))
             except Exception as e:
-                print(f"Error processing {file_path}: {e}")
+                error_count += 1
+                if error_count <= max_error_logs or error_count % 100 == 0:
+                    print(
+                        f"[GRP worker={worker_label}] Error processing {file_path}: {e} "
+                        f"(errors={error_count})"
+                    )
                 continue
 
             # Flush buffer periodically to limit memory usage
@@ -108,3 +122,9 @@ class GrpReplayDataset(IterableDataset):
             if self.is_train:
                 random.shuffle(buffer)
             yield from buffer
+
+        if error_count > max_error_logs:
+            print(
+                f"[GRP worker={worker_label}] Suppressed {error_count - max_error_logs} "
+                "additional replay errors."
+            )

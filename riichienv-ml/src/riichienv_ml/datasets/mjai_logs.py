@@ -197,8 +197,16 @@ class MCDataset(BaseDataset):
 
         # Shard files across DataLoader workers to avoid duplicated work
         worker_info = torch.utils.data.get_worker_info()
+        worker_label = "main"
         if worker_info is not None:
             files = files[worker_info.id::worker_info.num_workers]
+            worker_label = str(worker_info.id)
+
+        try:
+            max_error_logs = int(os.getenv("RIICHIENV_ML_MAX_ERROR_LOGS", "20"))
+        except ValueError:
+            max_error_logs = 20
+        error_count = 0
 
         for file_path in files:
             cache_path = self._cache_path(file_path) if self.enable_cache else None
@@ -217,14 +225,25 @@ class MCDataset(BaseDataset):
 
                 yield from buffer
             except Exception as e:
-                # Skip malformed or corrupted replay files (e.g., broken gzip stream).
-                print(f"Error processing replay: {file_path}: {e}")
+                error_count += 1
+                # Skip malformed or corrupted replay files.
+                if error_count <= max_error_logs or error_count % 100 == 0:
+                    print(
+                        f"[MC worker={worker_label}] Error processing replay: {file_path}: {e} "
+                        f"(errors={error_count})"
+                    )
                 if cache_path is not None and cache_path.exists():
                     try:
                         cache_path.unlink()
                     except OSError:
                         pass
                 continue
+
+        if error_count > max_error_logs:
+            print(
+                f"[MC worker={worker_label}] Suppressed {error_count - max_error_logs} "
+                "additional replay errors."
+            )
 
 
 class DiscardHistoryDataset(MCDataset):

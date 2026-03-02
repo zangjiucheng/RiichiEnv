@@ -42,20 +42,23 @@ def parse_args() -> argparse.Namespace:
         help="Validation split ratio in [0, 1], deterministic by file name (default: 0.05)",
     )
     parser.add_argument(
-        "--gzip-level",
-        type=int,
-        default=1,
-        help="Gzip compression level 0-9 (default: 1, faster import)",
-    )
-    parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Overwrite existing .jsonl.gz files",
+        help="Overwrite existing .jsonl files",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show planned outputs without writing files",
+    )
+    parser.add_argument(
+        "--encoding-errors",
+        choices=["strict", "replace", "ignore"],
+        default="strict",
+        help=(
+            "How to handle non-UTF-8 source data before writing .jsonl "
+            "(default: strict; invalid files are skipped)"
+        ),
     )
     return parser.parse_args()
 
@@ -79,12 +82,31 @@ def normalize_member_path(member_name: str) -> PurePosixPath | None:
     return PurePosixPath(*clean_parts)
 
 
+def _maybe_decompress_member(raw: bytes) -> bytes:
+    """If a zip member is already gzipped, decompress it first."""
+    if len(raw) >= 2 and raw[:2] == b"\x1f\x8b":
+        try:
+            return gzip.decompress(raw)
+        except OSError:
+            # Not a valid gzip stream; keep original bytes and let UTF-8 check decide.
+            return raw
+    return raw
+
+
+def _normalize_to_utf8_jsonl(raw: bytes, encoding_errors: str) -> bytes:
+    """Normalize content to UTF-8 JSONL bytes with \n line endings."""
+    raw = _maybe_decompress_member(raw)
+    text = raw.decode("utf-8", errors=encoding_errors)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if text and not text.endswith("\n"):
+        text += "\n"
+    return text.encode("utf-8")
+
+
 def main() -> None:
     args = parse_args()
     if not (0.0 <= args.val_ratio <= 1.0):
         raise ValueError("--val-ratio must be between 0 and 1")
-    if not (0 <= args.gzip_level <= 9):
-        raise ValueError("--gzip-level must be between 0 and 9")
 
     dataset_root = Path(args.output_root) / f"mjsoul-{args.players}"
     train_root = dataset_root / "train"
@@ -123,7 +145,7 @@ def main() -> None:
                     invalid += 1
                     continue
 
-                rel_out = Path(*normalized.parts).with_suffix(".jsonl.gz")
+                rel_out = Path(*normalized.parts).with_suffix(".jsonl")
                 split_root = val_root if is_val_split(normalized.as_posix(), args.val_ratio) else train_root
                 out_path = split_root / rel_out
 
@@ -139,14 +161,20 @@ def main() -> None:
                 out_path.parent.mkdir(parents=True, exist_ok=True)
                 raw = zf.read(info)
                 tmp_path = out_path.parent / f".{out_path.name}.tmp.{os.getpid()}"
+                success = False
                 try:
-                    gz_bytes = gzip.compress(raw, compresslevel=args.gzip_level, mtime=0)
-                    tmp_path.write_bytes(gz_bytes)
+                    normalized_raw = _normalize_to_utf8_jsonl(raw, args.encoding_errors)
+                    tmp_path.write_bytes(normalized_raw)
                     os.replace(tmp_path, out_path)
+                    success = True
+                except UnicodeDecodeError as e:
+                    invalid += 1
+                    print(f"Skip invalid UTF-8 member: {info.filename}: {e}")
                 finally:
                     if tmp_path.exists():
                         tmp_path.unlink()
-                written += 1
+                if success:
+                    written += 1
 
         total_seen += seen
         total_written += written

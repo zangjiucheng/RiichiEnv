@@ -97,8 +97,8 @@ class EvaluatorConfig(BaseModel):
 
 class GrpConfig(WandbConfig):
     game: GameConfig = GameConfig()
-    data_glob: str = "/data/mjsoul/mjsoul-4p/2024/**/*.jsonl.gz"
-    val_data_glob: str = "/data/mjsoul/mjsoul-4p/2024/01/**/*.jsonl.gz"
+    data_glob: str = "data/mjsoul/mjsoul-4p/train/**/*.jsonl"
+    val_data_glob: str = "data/mjsoul/mjsoul-4p/val/**/*.jsonl"
     output: str = "grp_model.pth"
     device: str = "cuda"
     batch_size: int = 128
@@ -112,7 +112,7 @@ class GrpConfig(WandbConfig):
 class OfflineTrainConfig(WandbConfig):
     """Shared config for offline BC and CQL training."""
     game: GameConfig = GameConfig()
-    data_glob: str = "/data/mjsoul/mjsoul-4p/2024/**/*.jsonl.gz"
+    data_glob: str = "data/mjsoul/mjsoul-4p/train/**/*.jsonl"
     grp_model: str = "./grp_model.pth"
     output: str = "bc_model.pth"
     device: str = "cuda"
@@ -221,8 +221,8 @@ class PpoConfig(WandbConfig):
 class HandPredConfig(WandbConfig):
     """Config for hand prediction (opponent hand estimation)."""
     game: GameConfig = GameConfig()
-    data_glob: str = "/data/mjsoul/mjsoul-4p/2024/**/*.jsonl.gz"
-    val_data_glob: str = "/data/mjsoul/mjsoul-4p/2024/01/**/*.jsonl.gz"
+    data_glob: str = "data/mjsoul/mjsoul-4p/train/**/*.jsonl"
+    val_data_glob: str = "data/mjsoul/mjsoul-4p/val/**/*.jsonl"
     output: str = "hand_pred_model.pth"
     device: str = "cuda"
     batch_size: int = 128

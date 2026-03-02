@@ -1,7 +1,7 @@
 bc:
   game:
     n_players: 4
-  data_glob: "data/mjsoul/mjsoul-4p/train/**/*.jsonl.gz"
+  data_glob: "data/mjsoul/mjsoul-4p/train/**/*.jsonl"
   grp_model: artifacts/4p/grp_model.pth
   output: artifacts/4p/bc_model.pth
   device: cuda

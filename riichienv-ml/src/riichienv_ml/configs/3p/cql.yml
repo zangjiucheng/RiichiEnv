@@ -1,7 +1,7 @@
 cql:
   game:
     n_players: 3
-  data_glob: "data/mjsoul/mjsoul-3p/train/**/*.jsonl.gz"
+  data_glob: "data/mjsoul/mjsoul-3p/train/**/*.jsonl"
   grp_model: artifacts/3p/grp_model.pth
   output: artifacts/3p/cql_model.pth
   device: cuda

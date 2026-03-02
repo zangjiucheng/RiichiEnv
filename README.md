@@ -12,11 +12,11 @@ Expected relative data layout (from repo root):
 data/
   mjsoul/
     mjsoul-4p/
-      train/.../*.jsonl.gz
-      val/.../*.jsonl.gz
+      train/.../*.jsonl
+      val/.../*.jsonl
     mjsoul-3p/
-      train/.../*.jsonl.gz
-      val/.../*.jsonl.gz
+      train/.../*.jsonl
+      val/.../*.jsonl
 ```
 
 Create the local directories first:
@@ -54,7 +54,7 @@ export RIICHIENV_ML_CACHE_DTYPE=float16
 
 ## Stage 0.5: Import Downloaded `.zip` Data
 
-Convert zip files containing `.mjson` into local `train/val` `.jsonl.gz` files:
+Convert zip files containing `.mjson` into local `train/val` `.jsonl` files:
 
 ```sh
 # 4-player: import one year zip
@@ -71,6 +71,19 @@ Notes:
 - Default validation split is `5%` (`--val-ratio 0.05`), deterministic by file name.
 - Use `--overwrite` if you want to regenerate already imported files.
 - Use `--dry-run` to preview output paths without writing files.
+- Import now validates UTF-8 by default (`--encoding-errors strict`).
+- If your source has minor broken bytes, you can force salvage with `--encoding-errors replace`.
+
+If training logs contain errors like `Read error: stream did not contain valid UTF-8`, rebuild files:
+
+```sh
+python riichienv-ml/scripts/import_mjai_zip.py \
+  --players 4p \
+  --overwrite \
+  ./.cache/riichi-data/2023.zip \
+  ./.cache/riichi-data/2024.zip \
+  ./.cache/riichi-data/2025.zip
+```
 
 ## Stage 1: Train GRP (Reward Model)
 

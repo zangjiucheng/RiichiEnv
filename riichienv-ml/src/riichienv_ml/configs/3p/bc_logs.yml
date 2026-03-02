@@ -1,8 +1,8 @@
 bc:
   game:
     n_players: 3
-  data_glob: "data/mjsoul/mjsoul-3p/train/**/*.jsonl.gz"
-  val_data_glob: "data/mjsoul/mjsoul-3p/val/**/*.jsonl.gz"
+  data_glob: "data/mjsoul/mjsoul-3p/train/**/*.jsonl"
+  val_data_glob: "data/mjsoul/mjsoul-3p/val/**/*.jsonl"
   output: artifacts/3p/bc_model.pth
   device: cuda
   batch_size: 256
