@@ -5,7 +5,7 @@ bc:
   grp_model: artifacts/4p/grp_model.pth
   output: artifacts/4p/bc_model.pth
   device: cuda
-  batch_size: 128
+  batch_size: 256
   lr: 5e-4
   lr_min: 1e-5
   gamma: 1.0
@@ -18,9 +18,11 @@ bc:
   # Online teacher settings
   teacher_model_name: kanachan
   teacher_model_path: artifacts/teacher/best_model.pth
-  num_ray_workers: 4
-  num_envs_per_worker: 16
+  num_ray_workers: 16
+  num_envs_per_worker: 32
   num_steps: 500
+  worker_device: cpu
+  gpu_per_worker: 0.0
   # Model (ActorCriticNetwork)
   model_class: riichienv_ml.models.actor_critic.ActorCriticNetwork
   encoder_class: riichienv_ml.features.feat_v1.ObservationEncoder

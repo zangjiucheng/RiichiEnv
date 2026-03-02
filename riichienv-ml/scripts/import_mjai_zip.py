@@ -42,6 +42,12 @@ def parse_args() -> argparse.Namespace:
         help="Validation split ratio in [0, 1], deterministic by file name (default: 0.05)",
     )
     parser.add_argument(
+        "--gzip-level",
+        type=int,
+        default=1,
+        help="Gzip compression level 0-9 (default: 1, faster import)",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite existing .jsonl.gz files",
@@ -77,6 +83,8 @@ def main() -> None:
     args = parse_args()
     if not (0.0 <= args.val_ratio <= 1.0):
         raise ValueError("--val-ratio must be between 0 and 1")
+    if not (0 <= args.gzip_level <= 9):
+        raise ValueError("--gzip-level must be between 0 and 9")
 
     dataset_root = Path(args.output_root) / f"mjsoul-{args.players}"
     train_root = dataset_root / "train"
@@ -132,8 +140,8 @@ def main() -> None:
                 raw = zf.read(info)
                 tmp_path = out_path.parent / f".{out_path.name}.tmp.{os.getpid()}"
                 try:
-                    with gzip.open(tmp_path, "wb") as f:
-                        f.write(raw)
+                    gz_bytes = gzip.compress(raw, compresslevel=args.gzip_level, mtime=0)
+                    tmp_path.write_bytes(gz_bytes)
                     os.replace(tmp_path, out_path)
                 finally:
                     if tmp_path.exists():

@@ -5,8 +5,8 @@ grp:
   val_data_glob: data/mjsoul/mjsoul-4p/val/**/*.jsonl.gz
   output: artifacts/4p/grp_model.pth
   device: cuda
-  batch_size: 512
-  num_workers: 8
+  batch_size: 1024
+  num_workers: 48
   num_epochs: 1
   lr: 5e-4
   lr_eta_min: 1e-7
