@@ -84,6 +84,8 @@ Notes:
 - Use `--dry-run` to preview output paths without writing files.
 - Import now validates UTF-8 by default (`--encoding-errors strict`).
 - If your source has minor broken bytes, you can force salvage with `--encoding-errors replace`.
+- Import now repairs common self-draw `hora` issues by default (`--repair-zimo-hora`).
+- Disable this repair only for debugging with `--no-repair-zimo-hora`.
 
 If training logs contain errors like `Read error: stream did not contain valid UTF-8`, rebuild files:
 
@@ -102,7 +104,8 @@ If training logs contain many `Replay desync` errors, quarantine bad files first
 python riichienv-ml/scripts/quarantine_bad_replays.py \
   --glob "data/mjsoul/mjsoul-4p/train/**/*.jsonl" \
   --players 4 \
-  --rule mjsoul
+  --rule mjsoul \
+  --mode steps
 ```
 
 ## Stage 1: Train GRP (Reward Model)

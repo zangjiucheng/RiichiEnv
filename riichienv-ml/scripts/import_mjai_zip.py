@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import json
 import os
 from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
@@ -60,6 +61,15 @@ def parse_args() -> argparse.Namespace:
             "(default: strict; invalid files are skipped)"
         ),
     )
+    parser.add_argument(
+        "--repair-zimo-hora",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Repair self-draw hora ordering by filling missing hora.pai and "
+            "inserting a synthetic tsumo before hora when needed (default: on)"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -103,6 +113,97 @@ def _normalize_to_utf8_jsonl(raw: bytes, encoding_errors: str) -> bytes:
     return text.encode("utf-8")
 
 
+def _is_meta_event(event_type: str) -> bool:
+    return event_type in {"dora", "reach_accepted"}
+
+
+def _repair_mjai_events(events: list[dict], enable_repair: bool) -> tuple[list[dict], int]:
+    """Apply conservative replay-stability repairs for MJAI events.
+
+    Repairs only target zimo-hora consistency:
+    - fill missing hora.pai from the actor's latest tsumo
+    - insert a synthetic tsumo immediately before hora when missing
+    """
+    repaired: list[dict] = []
+    inserted_events = 0
+    last_tsumo_pai: dict[int, str] = {}
+    last_actionable_type: str | None = None
+    last_actionable_actor: int | None = None
+
+    for event in events:
+        event_type = event.get("type")
+        if not isinstance(event_type, str):
+            raise ValueError(f"event missing string type: {event}")
+
+        if event_type == "start_kyoku":
+            last_tsumo_pai.clear()
+            last_actionable_type = None
+            last_actionable_actor = None
+
+        if event_type == "tsumo":
+            actor = event.get("actor")
+            pai = event.get("pai")
+            if isinstance(actor, int) and isinstance(pai, str):
+                last_tsumo_pai[actor] = pai
+
+        if enable_repair and event_type == "hora":
+            actor = event.get("actor")
+            target = event.get("target")
+            if isinstance(actor, int) and isinstance(target, int) and actor == target:
+                pai = event.get("pai")
+                if not isinstance(pai, str):
+                    pai = last_tsumo_pai.get(actor)
+                    if pai is not None:
+                        event = dict(event)
+                        event["pai"] = pai
+                # For zimo, riichienv expects the actor's tsumo immediately before hora.
+                if (
+                    pai is not None
+                    and (
+                        last_actionable_type != "tsumo"
+                        or last_actionable_actor != actor
+                    )
+                ):
+                    repaired.append({"type": "tsumo", "actor": actor, "pai": pai})
+                    inserted_events += 1
+                    last_tsumo_pai[actor] = pai
+                    last_actionable_type = "tsumo"
+                    last_actionable_actor = actor
+
+        repaired.append(event)
+        if not _is_meta_event(event_type):
+            last_actionable_type = event_type
+            actor = event.get("actor")
+            last_actionable_actor = actor if isinstance(actor, int) else None
+
+    return repaired, inserted_events
+
+
+def _normalize_and_repair_jsonl(
+    raw: bytes,
+    *,
+    encoding_errors: str,
+    repair_zimo_hora: bool,
+) -> tuple[bytes, int]:
+    """Normalize bytes to UTF-8 JSONL and apply optional event-level repairs."""
+    normalized = _normalize_to_utf8_jsonl(raw, encoding_errors)
+    text = normalized.decode("utf-8")
+    lines = [line for line in text.splitlines() if line.strip()]
+    events: list[dict] = []
+    for idx, line in enumerate(lines, start=1):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"invalid JSON at line {idx}: {e}") from e
+        if not isinstance(event, dict):
+            raise ValueError(f"invalid event at line {idx}: expected object, got {type(event).__name__}")
+        events.append(event)
+
+    repaired_events, inserted = _repair_mjai_events(events, enable_repair=repair_zimo_hora)
+    out = "".join(json.dumps(e, ensure_ascii=False, separators=(",", ":")) + "\n" for e in repaired_events)
+    return out.encode("utf-8"), inserted
+
+
 def main() -> None:
     args = parse_args()
     if not (0.0 <= args.val_ratio <= 1.0):
@@ -120,6 +221,8 @@ def main() -> None:
     total_written = 0
     total_skipped = 0
     total_invalid = 0
+    total_repaired_inserted = 0
+    total_repaired_files = 0
 
     for zip_path_str in args.zip_files:
         zip_path = Path(zip_path_str)
@@ -129,6 +232,8 @@ def main() -> None:
         written = 0
         skipped = 0
         invalid = 0
+        repaired_inserted = 0
+        repaired_files = 0
         seen = 0
 
         with ZipFile(zip_path) as zf:
@@ -163,31 +268,45 @@ def main() -> None:
                 tmp_path = out_path.parent / f".{out_path.name}.tmp.{os.getpid()}"
                 success = False
                 try:
-                    normalized_raw = _normalize_to_utf8_jsonl(raw, args.encoding_errors)
+                    normalized_raw, inserted = _normalize_and_repair_jsonl(
+                        raw,
+                        encoding_errors=args.encoding_errors,
+                        repair_zimo_hora=args.repair_zimo_hora,
+                    )
                     tmp_path.write_bytes(normalized_raw)
                     os.replace(tmp_path, out_path)
                     success = True
                 except UnicodeDecodeError as e:
                     invalid += 1
                     print(f"Skip invalid UTF-8 member: {info.filename}: {e}")
+                except ValueError as e:
+                    invalid += 1
+                    print(f"Skip invalid MJAI member: {info.filename}: {e}")
                 finally:
                     if tmp_path.exists():
                         tmp_path.unlink()
                 if success:
                     written += 1
+                    if inserted > 0:
+                        repaired_files += 1
+                        repaired_inserted += inserted
 
         total_seen += seen
         total_written += written
         total_skipped += skipped
         total_invalid += invalid
+        total_repaired_files += repaired_files
+        total_repaired_inserted += repaired_inserted
         print(
-            f"{zip_path}: seen={seen}, written={written}, skipped={skipped}, invalid={invalid}"
+            f"{zip_path}: seen={seen}, written={written}, skipped={skipped}, invalid={invalid}, "
+            f"repaired_files={repaired_files}, inserted_events={repaired_inserted}"
         )
 
     print(
         "Done. "
         f"total_seen={total_seen}, total_written={total_written}, "
-        f"total_skipped={total_skipped}, total_invalid={total_invalid}"
+        f"total_skipped={total_skipped}, total_invalid={total_invalid}, "
+        f"total_repaired_files={total_repaired_files}, total_inserted_events={total_repaired_inserted}"
     )
 
 
