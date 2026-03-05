@@ -22,7 +22,10 @@ ppo:
   weight_decay: 0.1
   alpha_kl: 0.1
   alpha_kl_warmup_steps: 50
+  # null means: when alpha_kl > 0, use load_model checkpoint as frozen teacher
+  teacher_model: null
   aux_weight: 0.0
+  checkpoint_interval: 10
   eval_interval: 50
   eval_episodes: 192
   worker_device: cpu

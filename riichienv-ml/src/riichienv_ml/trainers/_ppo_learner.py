@@ -23,7 +23,8 @@ class PPOLearner:
                  alpha_kl_warmup_steps: int = 0,
                  batch_size: int = 128,
                  model_config: dict | None = None,
-                 model_class: str = "riichienv_ml.models.actor_critic.ActorCriticNetwork"):
+                 model_class: str = "riichienv_ml.models.actor_critic.ActorCriticNetwork",
+                 teacher_model: str | None = None):
 
         self.device = torch.device(device)
         self.gamma = gamma
@@ -36,6 +37,7 @@ class PPOLearner:
         self.alpha_kl = alpha_kl
         self.alpha_kl_warmup_steps = alpha_kl_warmup_steps
         self.batch_size = batch_size
+        self.teacher_model_path = teacher_model
 
         mc = model_config or {}
         ModelClass = import_class(model_class)
@@ -47,6 +49,8 @@ class PPOLearner:
             self.ref_model.eval()
             for p in self.ref_model.parameters():
                 p.requires_grad = False
+            if self.teacher_model_path:
+                self.load_teacher_weights(self.teacher_model_path)
 
         self.optimizer = optim.AdamW(self.model.parameters(), lr=lr, weight_decay=weight_decay)
         self.total_steps = 0
@@ -54,9 +58,21 @@ class PPOLearner:
     def get_weights(self):
         return self.model.state_dict()
 
-    def load_weights(self, path: str):
-        """Load weights with backward compatibility for QNetwork checkpoints."""
-        state = torch.load(path, map_location=self.device)
+    @staticmethod
+    def _normalize_state_dict(state: dict) -> dict:
+        if isinstance(state, dict) and "state_dict" in state and isinstance(state["state_dict"], dict):
+            state = state["state_dict"]
+        if not isinstance(state, dict):
+            raise TypeError(f"Unsupported checkpoint format: {type(state)}")
+        if any(k.startswith("_orig_mod.") for k in state.keys()):
+            state = {
+                (k.replace("_orig_mod.", "", 1) if k.startswith("_orig_mod.") else k): v
+                for k, v in state.items()
+            }
+        return state
+
+    def _load_weights_compat(self, target_model: nn.Module, state: dict, path: str, role: str) -> tuple[list, list]:
+        state = self._normalize_state_dict(state)
 
         has_actor = any(k.startswith("actor_head.") for k in state.keys())
         has_critic = any(k.startswith("critic_head.") for k in state.keys())
@@ -64,9 +80,11 @@ class PPOLearner:
         has_a_head = any(k.startswith("a_head.") for k in state.keys())
 
         if has_actor and has_critic:
-            missing, unexpected = self.model.load_state_dict(state, strict=False)
-            logger.info(f"Loaded ActorCriticNetwork weights from {path}")
-        elif has_v_head and has_a_head:
+            missing, unexpected = target_model.load_state_dict(state, strict=False)
+            logger.info(f"Loaded ActorCriticNetwork {role} weights from {path}")
+            return missing, unexpected
+
+        if has_v_head and has_a_head:
             new_state = {}
             for k, v in state.items():
                 if k.startswith("a_head."):
@@ -77,30 +95,69 @@ class PPOLearner:
                     continue
                 else:
                     new_state[k] = v
-            missing, unexpected = self.model.load_state_dict(new_state, strict=False)
-            logger.info(f"Loaded dueling QNetwork weights from {path} "
-                        f"(a_head -> actor_head, v_head -> critic_head)")
-        elif any(k.startswith("head.") for k in state.keys()):
+            missing, unexpected = target_model.load_state_dict(new_state, strict=False)
+            logger.info(
+                f"Loaded dueling QNetwork {role} weights from {path} "
+                f"(a_head -> actor_head, v_head -> critic_head)"
+            )
+            return missing, unexpected
+
+        if any(k.startswith("head.") for k in state.keys()):
             new_state = {}
             for k, v in state.items():
                 if k.startswith("head."):
                     new_state[k.replace("head.", "actor_head.")] = v
                 else:
                     new_state[k] = v
-            missing, unexpected = self.model.load_state_dict(new_state, strict=False)
-            logger.info(f"Loaded QNetwork weights from {path} (head -> actor_head, critic_head initialized randomly)")
-        else:
-            missing, unexpected = self.model.load_state_dict(state, strict=False)
-            logger.info(f"Loaded weights from {path} (best effort)")
+            missing, unexpected = target_model.load_state_dict(new_state, strict=False)
+            logger.info(
+                f"Loaded QNetwork {role} weights from {path} "
+                f"(head -> actor_head, critic head random init if missing)"
+            )
+            return missing, unexpected
 
+        missing, unexpected = target_model.load_state_dict(state, strict=False)
+        logger.info(f"Loaded {role} weights from {path} (best effort)")
+        return missing, unexpected
+
+    @staticmethod
+    def _log_missing_unexpected(missing: list, unexpected: list, role: str) -> None:
         if missing:
-            logger.warning(f"Missing keys: {missing}")
+            logger.warning(f"{role} missing keys: {missing}")
         if unexpected:
-            logger.warning(f"Unexpected keys: {unexpected}")
+            logger.warning(f"{role} unexpected keys: {unexpected}")
 
-        if self.ref_model is not None:
+    def load_teacher_weights(self, path: str) -> None:
+        if self.ref_model is None:
+            raise RuntimeError("Cannot load teacher weights when alpha_kl <= 0 (reference model not initialized).")
+        state = torch.load(path, map_location=self.device)
+        missing, unexpected = self._load_weights_compat(
+            target_model=self.ref_model,
+            state=state,
+            path=path,
+            role="teacher",
+        )
+        self._log_missing_unexpected(missing, unexpected, role="teacher")
+        self.teacher_model_path = path
+        self.ref_model.eval()
+        for p in self.ref_model.parameters():
+            p.requires_grad = False
+        logger.info("Loaded frozen teacher model for KL regularization")
+
+    def load_weights(self, path: str):
+        """Load weights with backward compatibility for QNetwork checkpoints."""
+        state = torch.load(path, map_location=self.device)
+        missing, unexpected = self._load_weights_compat(
+            target_model=self.model,
+            state=state,
+            path=path,
+            role="student",
+        )
+        self._log_missing_unexpected(missing, unexpected, role="student")
+
+        if self.ref_model is not None and self.teacher_model_path is None:
             self.ref_model.load_state_dict(self.model.state_dict())
-            logger.info("Loaded reference model for KL regularization (frozen)")
+            logger.info("Initialized frozen teacher from current student checkpoint")
 
     def update(self, rollout_batch: dict) -> dict:
         """PPO update over a batch of on-policy trajectory data."""

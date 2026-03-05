@@ -195,6 +195,7 @@ class PpoConfig(WandbConfig):
     target_update_freq: int = 2000
     # Common params
     eval_interval: int = 2000
+    checkpoint_interval: int = 0  # 0 = only save on eval/final
     eval_episodes: int = 100
     weight_sync_freq: int = 10
     worker_device: Literal["cpu", "cuda"] = "cpu"
@@ -214,6 +215,9 @@ class PpoConfig(WandbConfig):
     grp_model: str | None = None
     pts_weight: list[float] = [10.0, 4.0, -4.0, -10.0]
     async_rollout: bool = False
+    # Optional frozen teacher checkpoint for KL regularization.
+    # If unset and alpha_kl > 0, load_model (if provided) is used as teacher.
+    teacher_model: str | None = None
     # Third-party evaluator (4P only)
     evaluator: EvaluatorConfig = EvaluatorConfig()
 

@@ -108,10 +108,17 @@ def run_ppo_training(cfg):
         batch_size=cfg.batch_size,
         model_config=model_config,
         model_class=cfg.model_class,
+        teacher_model=cfg.teacher_model,
     )
 
     if cfg.load_model:
         learner.load_weights(cfg.load_model)
+    if cfg.alpha_kl > 0 and cfg.teacher_model is not None:
+        logger.info(f"KL teacher checkpoint: {cfg.teacher_model}")
+    elif cfg.alpha_kl > 0 and cfg.load_model is not None:
+        logger.info(f"KL teacher defaults to loaded checkpoint: {cfg.load_model}")
+    elif cfg.teacher_model is not None and cfg.alpha_kl <= 0:
+        logger.warning("teacher_model is set but alpha_kl <= 0, so teacher KL loss is disabled.")
 
     tp_evaluator = _create_evaluator(cfg, model_config)
 
@@ -245,14 +252,15 @@ def run_ppo_training(cfg):
             logger.info(log_msg)
             wandb.log(metrics, step=step)
 
-            if step > 0 and step % cfg.eval_interval == 0:
-                logger.info(f"Step {step}: Saving snapshot and Evaluating...")
-                sys.stdout.flush()
-
+            if cfg.checkpoint_interval > 0 and step % cfg.checkpoint_interval == 0:
                 save_path = f"{cfg.checkpoint_dir}/model_{step}.pth"
                 save_weights = {k: v.cpu().clone() for k, v in learner.get_weights().items()}
                 threading.Thread(target=torch.save, args=(save_weights, save_path), daemon=True).start()
-                logger.info(f"Saved snapshot to {save_path} (async)")
+                logger.info(f"Step {step}: saved checkpoint to {save_path} (async)")
+
+            if step > 0 and step % cfg.eval_interval == 0:
+                logger.info(f"Step {step}: Evaluating...")
+                sys.stdout.flush()
 
                 try:
                     hw = {k: v.cpu() for k, v in learner.get_weights().items()}

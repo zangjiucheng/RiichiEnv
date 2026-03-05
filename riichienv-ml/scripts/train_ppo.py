@@ -40,6 +40,8 @@ def parse_args() -> argparse.Namespace:
     # DQN-specific
     parser.add_argument("--alpha_cql_init", type=float, default=None)
     parser.add_argument("--alpha_cql_final", type=float, default=None)
+    parser.add_argument("--alpha_kl", type=float, default=None)
+    parser.add_argument("--alpha_kl_warmup_steps", type=int, default=None)
     parser.add_argument("--exploration", type=str, default=None, choices=["epsilon_greedy", "boltzmann"])
     parser.add_argument("--epsilon_start", type=float, default=None)
     parser.add_argument("--epsilon_final", type=float, default=None)
@@ -56,11 +58,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--value_coef", type=float, default=None)
     # Common
     parser.add_argument("--eval_interval", type=int, default=None)
+    parser.add_argument("--checkpoint_interval", type=int, default=None)
     parser.add_argument("--weight_sync_freq", type=int, default=None)
     parser.add_argument("--worker_device", type=str, default=None, choices=["cpu", "cuda"])
     parser.add_argument("--gpu_per_worker", type=float, default=None)
     parser.add_argument("--num_envs_per_worker", type=int, default=None)
     parser.add_argument("--checkpoint_dir", type=str, default=None)
+    parser.add_argument("--teacher_model", type=str, default=None)
     parser.add_argument("--encoder_class", type=str, default=None)
     # Model architecture overrides
     parser.add_argument("--num_blocks", type=int, default=None)
@@ -85,14 +89,15 @@ def main():
     # Override config with CLI args
     overrides = {}
     for field in ["algorithm", "num_workers", "num_steps", "batch_size", "device", "load_model",
-                  "lr", "alpha_cql_init", "alpha_cql_final",
+                  "lr", "alpha_cql_init", "alpha_cql_final", "alpha_kl", "alpha_kl_warmup_steps",
                   "exploration", "epsilon_start", "epsilon_final",
                   "boltzmann_epsilon", "boltzmann_temp_start", "boltzmann_temp_final", "top_p",
                   "capacity",
                   "ppo_clip", "ppo_epochs", "gae_lambda", "entropy_coef", "value_coef",
-                  "eval_interval", "weight_sync_freq", "worker_device", "gpu_per_worker",
+                  "eval_interval", "checkpoint_interval", "weight_sync_freq",
+                  "worker_device", "gpu_per_worker",
                   "num_envs_per_worker",
-                  "checkpoint_dir", "encoder_class"]:
+                  "checkpoint_dir", "teacher_model", "encoder_class"]:
         val = getattr(args, field, None)
         if val is not None:
             overrides[field] = val
@@ -119,6 +124,8 @@ def main():
         path_updates["grp_model"] = _resolve_path(cfg.grp_model)
     if cfg.load_model is not None:
         path_updates["load_model"] = _resolve_path(cfg.load_model)
+    if cfg.teacher_model is not None:
+        path_updates["teacher_model"] = _resolve_path(cfg.teacher_model)
     if cfg.evaluator.model_path is not None:
         eval_cfg = cfg.evaluator.model_copy(update={"model_path": _resolve_path(cfg.evaluator.model_path)})
         path_updates["evaluator"] = eval_cfg
@@ -128,6 +135,8 @@ def main():
         raise FileNotFoundError(f"GRP model not found: {cfg.grp_model}")
     if cfg.load_model is not None and not Path(cfg.load_model).is_file():
         raise FileNotFoundError(f"Load model not found: {cfg.load_model}")
+    if cfg.teacher_model is not None and not Path(cfg.teacher_model).is_file():
+        raise FileNotFoundError(f"Teacher model not found: {cfg.teacher_model}")
     if cfg.evaluator.model_path is not None and not Path(cfg.evaluator.model_path).is_file():
         print(
             f"Evaluator model not found: {cfg.evaluator.model_path}. "
