@@ -12,3 +12,4 @@ agents.py
 model.py
 mortal_agent_play.py
 build
+.python-version

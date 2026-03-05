@@ -1,0 +1,6 @@
+riichienv
+numpy
+torch
+pydantic
+wandb
+loguru
