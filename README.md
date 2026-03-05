@@ -168,6 +168,36 @@ python riichienv-ml/scripts/train_ppo.py -c riichienv-ml/src/riichienv_ml/config
 python riichienv-ml/scripts/train_ppo.py -c riichienv-ml/src/riichienv_ml/configs/4p/bc_ppo.yml
 ```
 
+## Stage 4: Inference Demo (Show Model Output in RiichiEnv)
+
+Run one full game with your trained model and print hero decisions step-by-step:
+
+```sh
+python riichienv-ml/scripts/infer_riichienv.py \
+  --config riichienv-ml/src/riichienv_ml/configs/4p/ppo.yml \
+  --model artifacts/4p/ppo/checkpoints/model_50.pth \
+  --episodes 1 \
+  --hero-seat 0 \
+  --opponent-policy random
+```
+
+Useful variants:
+
+```sh
+# Let all players use the same model
+python riichienv-ml/scripts/infer_riichienv.py \
+  --config riichienv-ml/src/riichienv_ml/configs/4p/ppo.yml \
+  --model artifacts/4p/ppo/checkpoints/model_50.pth \
+  --episodes 3 \
+  --opponent-policy model
+
+# Sample actions instead of greedy argmax
+python riichienv-ml/scripts/infer_riichienv.py \
+  --config riichienv-ml/src/riichienv_ml/configs/4p/ppo.yml \
+  --model artifacts/4p/ppo/checkpoints/model_50.pth \
+  --sample --temperature 0.8
+```
+
 ## Optional: Online Teacher BC (4p)
 
 Requires an external teacher plugin (not included in this repo):
@@ -184,4 +214,31 @@ If CUDA is unavailable, override key flags, for example:
 python riichienv-ml/scripts/train_grp.py \
   -c riichienv-ml/src/riichienv_ml/configs/4p/grp.yml \
   --device cpu --num_workers 4
+```
+
+## Optional: Upload Weights to Hugging Face Hub
+
+Install client:
+
+```sh
+pip install huggingface_hub
+```
+
+Login once (interactive):
+
+```sh
+huggingface-cli login
+```
+
+Upload current folder to `zangjiucheng/riichippo`:
+
+```sh
+python riichienv-ml/scripts/upload_hf_weights.py
+```
+
+Upload a specific folder:
+
+```sh
+python riichienv-ml/scripts/upload_hf_weights.py \
+  --folder artifacts/4p/ppo/checkpoints
 ```
