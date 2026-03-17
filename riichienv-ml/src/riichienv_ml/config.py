@@ -19,7 +19,7 @@ GAME_PARAMS = {
         "tile_dim": 27,
         "num_actions": 60,
         "game_mode": "3p-red-half",
-        "replay_rule": "mjsoul_sanma",
+        "replay_rule": "mjsoul",
         "starting_scores": [35000, 35000, 35000],
     },
 }
@@ -88,11 +88,18 @@ class WandbConfig(BaseModel):
     wandb_group: str | None = None
 
 
+class OpponentConfig(BaseModel):
+    config_path: str
+    model_path: str
+
+
 class EvaluatorConfig(BaseModel):
     model_path: str | None = None
+    evaluator_name: str | None = None
     eval_episodes: int = 48
     eval_interval: int = 50000
     eval_device: str = "cpu"
+    opponents: list[OpponentConfig] = []
 
 
 class GrpConfig(WandbConfig):
@@ -131,7 +138,7 @@ class OfflineTrainConfig(WandbConfig):
     model_class: str = "riichienv_ml.models.q_network.QNetwork"
     dataset_class: str = "riichienv_ml.datasets.mjai_logs.MCDataset"
     encoder_class: str = "riichienv_ml.features.feat_v1.ObservationEncoder"
-    # Third-party evaluator (4P only)
+    # Third-party evaluator
     evaluator: EvaluatorConfig = EvaluatorConfig()
 
 
@@ -218,7 +225,11 @@ class PpoConfig(WandbConfig):
     # Optional frozen teacher checkpoint for KL regularization.
     # If unset and alpha_kl > 0, load_model (if provided) is used as teacher.
     teacher_model: str | None = None
-    # Third-party evaluator (4P only)
+    # Self-play baseline update interval (0 = never update, keep frozen)
+    baseline_update_interval: int = 0
+    # Fixed opponent model path (if set, baseline is loaded from this path instead of hero weights)
+    baseline_model: str | None = None
+    # Third-party evaluator
     evaluator: EvaluatorConfig = EvaluatorConfig()
 
 
